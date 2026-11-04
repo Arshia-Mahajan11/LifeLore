@@ -1,80 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ARCHETYPES, matchArchetype, generateDynamicQuests, XP_PER_LEVEL } from './data/lore.js';
 import '../styles/styles.css';
 
-const STORAGE_KEY = 'winter_arc_lifereset_save_v1';
-
-function SignaturePad({ onSign }) {
-  const canvasRef = useRef(null);
-  const drawingRef = useRef(false);
-  const [hasInk, setHasInk] = useState(false);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#00e5ff';
-  }, []);
-
-  function getPos(e) {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: ((cx - rect.left) / rect.width) * canvasRef.current.width,
-      y: ((cy - rect.top) / rect.height) * canvasRef.current.height
-    };
-  }
-
-  function start(e) {
-    drawingRef.current = true;
-    const ctx = canvasRef.current.getContext('2d');
-    const pt = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(pt.x, pt.y);
-  }
-
-  function draw(e) {
-    if (!drawingRef.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    const pt = getPos(e);
-    ctx.lineTo(pt.x, pt.y);
-    ctx.stroke();
-    setHasInk(true);
-  }
-
-  function finish() {
-    drawingRef.current = false;
-    onSign(canvasRef.current.toDataURL());
-  }
-
-  function clear() {
-    const canvas = canvasRef.current;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    setHasInk(false);
-    onSign('');
-  }
-
-  return (
-    <div className="sig-container">
-      <canvas
-        ref={canvasRef}
-        width={380}
-        height={110}
-        onMouseDown={start}
-        onMouseMove={draw}
-        onMouseUp={finish}
-        onTouchStart={start}
-        onTouchMove={draw}
-        onTouchEnd={finish}
-      />
-      {!hasInk && <span className="sig-placeholder">Draw signature with finger or mouse</span>}
-      <button type="button" className="sig-clear-btn" onClick={clear}>Clear</button>
-    </div>
-  );
-}
+const STORAGE_KEY = 'winter_arc_lifereset_save_v2';
 
 export default function App() {
   const [gameState, setGameState] = useState(() => {
@@ -91,14 +19,18 @@ export default function App() {
   const [questSubTab, setQuestSubTab] = useState('todos');
   const [toast, setToast] = useState(null);
 
+  // Signing style states: 'thumb' or 'type'
+  const [signStyle, setSignStyle] = useState('thumb');
+  const [typedSign, setTypedSign] = useState('');
+  const [hasThumbprint, setHasThumbprint] = useState(false);
+
   const [answers, setAnswers] = useState({
     name: '',
-    wakeTime: '06:00',
-    sleepTime: '23:00',
+    studyHours: '6',
     goal: 'discipline',
     hobby: '',
     duration: 66,
-    signature: '',
+    skinGlowRating: 3,
     accepted: false
   });
 
@@ -111,56 +43,54 @@ export default function App() {
   const questions = [
     {
       id: 'name',
-      title: 'WHAT IS YOUR PLAYER NAME?',
-      subtitle: 'Enter your alias for the Winter Arc ranking system.',
+      title: 'ENTER YOUR WARRIOR ALIAS',
+      subtitle: 'Your name will be inscribed in the Winter Arc Chronicle.',
       render: () => (
         <input
           type="text"
-          className="q-input"
-          placeholder="e.g. Manas Yadav, Jin, Ethan"
+          className="q-input-heroic"
+          placeholder="e.g. Manas, Jin, Ethan"
           value={answers.name}
+          autoFocus
           onChange={(e) => setAnswers({ ...answers, name: e.target.value })}
         />
       )
     },
     {
-      id: 'schedule',
-      title: 'WHAT IS YOUR TARGET SCHEDULE?',
-      subtitle: 'Your waking hours shape your daily quest triggers.',
+      id: 'study',
+      title: 'DAILY STUDY & FOCUS QUOTA',
+      subtitle: 'Select the extreme study hours you wish to conquer daily.',
       render: () => (
-        <div className="time-select-grid">
-          <div>
-            <label>Wake Up Time</label>
-            <input
-              type="time"
-              className="q-input"
-              value={answers.wakeTime}
-              onChange={(e) => setAnswers({ ...answers, wakeTime: e.target.value })}
-            />
-          </div>
-          <div>
-            <label>In Bed Time</label>
-            <input
-              type="time"
-              className="q-input"
-              value={answers.sleepTime}
-              onChange={(e) => setAnswers({ ...answers, sleepTime: e.target.value })}
-            />
-          </div>
+        <div className="study-choice-grid">
+          {[
+            { hours: '4', label: '4 Hours', desc: 'Standard Academic Arc' },
+            { hours: '6', label: '6 Hours', desc: 'Intense Exam / Gate Arc' },
+            { hours: '8', label: '8+ Hours', desc: 'Monarch Mode (Extreme Grinder)' }
+          ].map((item) => (
+            <button
+              key={item.hours}
+              type="button"
+              className={`study-card ${answers.studyHours === item.hours ? 'selected' : ''}`}
+              onClick={() => setAnswers({ ...answers, studyHours: item.hours })}
+            >
+              <strong className="study-h">{item.label}</strong>
+              <span className="study-d">{item.desc}</span>
+            </button>
+          ))}
         </div>
       )
     },
     {
       id: 'goal',
-      title: 'CHOOSE YOUR WINTER ARC FOCUS',
-      subtitle: 'This unlocks your personal anime character archetype.',
+      title: 'YOUR PRIMARY ANIME INSPIRATION',
+      subtitle: 'This summons your personal combat archetype.',
       render: () => (
         <div className="focus-grid">
           {[
-            { key: 'discipline', label: 'Solo Discipline', anime: 'Sung Jin-woo (Solo Leveling)', icon: '⚡' },
-            { key: 'strength', label: 'Pure Grit & Gym', anime: 'Ippo (Hajime no Ippo)', icon: '🥊' },
-            { key: 'focus', label: 'Deep Work & Strategy', anime: 'Isagi Yoichi (Blue Lock)', icon: '🧠' },
-            { key: 'mindset', label: 'Relentless Confidence', anime: 'Hinata (Haikyuu!!)', icon: '🔥' }
+            { key: 'discipline', label: 'Sung Jin-woo', anime: 'Solo Leveling', sub: 'Pure Solo Discipline' },
+            { key: 'strength', label: 'Ippo Makunouchi', anime: 'Hajime no Ippo', sub: 'Brutal Strength & Gym' },
+            { key: 'focus', label: 'Yoichi Isagi', anime: 'Blue Lock', sub: 'Ego & Cognitive Focus' },
+            { key: 'mindset', label: 'Hinata Shoyo', anime: 'Haikyuu!!', sub: 'Limitless Confidence' }
           ].map((f) => (
             <button
               key={f.key}
@@ -168,9 +98,9 @@ export default function App() {
               className={`focus-card ${answers.goal === f.key ? 'selected' : ''}`}
               onClick={() => setAnswers({ ...answers, goal: f.key })}
             >
-              <span className="focus-icon">{f.icon}</span>
               <strong>{f.label}</strong>
-              <small>{f.anime}</small>
+              <small className="anime-name">{f.anime}</small>
+              <span className="focus-sub">{f.sub}</span>
             </button>
           ))}
         </div>
@@ -178,13 +108,13 @@ export default function App() {
     },
     {
       id: 'hobby',
-      title: 'WHAT HOBBY WILL YOU PROTECT?',
-      subtitle: 'A high-tier habit keeps your mind sharp during tough arcs.',
+      title: 'A HOBBY YOU WILL REFUSE TO ABANDON',
+      subtitle: 'Keep your mind creative and resilient under intense load.',
       render: () => (
         <input
           type="text"
-          className="q-input"
-          placeholder="e.g. Chess, Coding, Guitar, Sketching"
+          className="q-input-heroic"
+          placeholder="e.g. Coding, Piano, Sketching, Chess"
           value={answers.hobby}
           onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
         />
@@ -192,47 +122,84 @@ export default function App() {
     },
     {
       id: 'oath',
-      title: 'SELECT ARC LENGTH & SEAL OATH',
-      subtitle: 'Sign your name. Once sealed, daily trials begin.',
+      title: 'THE PARCHMENT COVENANT',
+      subtitle: 'Seal with your thumbprint or signature to bind your words.',
       render: () => {
         const assigned = matchArchetype(answers.goal);
         return (
-          <div className="oath-step">
-            <div className="arc-chips">
-              {[14, 21, 66].map((days) => (
+          <div className="parchment-scroll">
+            <div className="scroll-inner">
+              <span className="scroll-ornament">⚜ THE WINTER OATH ⚜</span>
+              <p className="scroll-text">
+                Be it known that <strong>{answers.name || 'The Seeker'}</strong> enters the ancient{' '}
+                <strong>{answers.duration}-Day Winter Arc</strong> under the guidance of{' '}
+                <em>{assigned.name}</em>. Daily promises shall be fulfilled: {answers.studyHours} hours of focused pursuit, relentless physical conditioning, and skin clarity.
+              </p>
+
+              <div className="arc-selector-row">
+                {[14, 21, 66].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    className={`scroll-chip ${answers.duration === days ? 'active' : ''}`}
+                    onClick={() => setAnswers({ ...answers, duration: days })}
+                  >
+                    {days} Days
+                  </button>
+                ))}
+              </div>
+
+              {/* Signing options: Thumbprint stamp or Calligraphy Typing */}
+              <div className="seal-type-tabs">
                 <button
                   type="button"
-                  key={days}
-                  className={`arc-chip ${answers.duration === days ? 'active' : ''}`}
-                  onClick={() => setAnswers({ ...answers, duration: days })}
+                  className={signStyle === 'thumb' ? 'active' : ''}
+                  onClick={() => setSignStyle('thumb')}
                 >
-                  {days} DAYS
+                  Blood/Wax Thumbprint
                 </button>
-              ))}
-            </div>
-
-            <div className="character-awaken-card">
-              <img src={assigned.stages.base} alt={assigned.name} />
-              <div>
-                <span className="archetype-badge">{assigned.title}</span>
-                <h4>{assigned.name}</h4>
-                <p>"{assigned.line}"</p>
+                <button
+                  type="button"
+                  className={signStyle === 'type' ? 'active' : ''}
+                  onClick={() => setSignStyle('type')}
+                >
+                  Ancient Script Signature
+                </button>
               </div>
-            </div>
 
-            <div className="oath-box">
-              <p>
-                I, <strong>{answers.name || 'Hunter'}</strong>, commit to this <strong>{answers.duration}-Day Winter Arc</strong>.
-                I will clear my daily trials and build unstoppable consistency.
-              </p>
-              <SignaturePad onSign={(dataUrl) => setAnswers({ ...answers, signature: dataUrl })} />
-              <label className="agree-check">
+              {signStyle === 'thumb' ? (
+                <div
+                  className={`wax-thumbprint-zone ${hasThumbprint ? 'stamped' : ''}`}
+                  onClick={() => setHasThumbprint(true)}
+                >
+                  {hasThumbprint ? (
+                    <div className="blood-thumbprint">
+                      <span className="thumb-lines"></span>
+                      <small>BOUND BY BLOOD</small>
+                    </div>
+                  ) : (
+                    <span className="press-thumb-prompt">Press & Hold Thumb to Stamp Wax Seal</span>
+                  )}
+                </div>
+              ) : (
+                <div className="vintage-type-zone">
+                  <input
+                    type="text"
+                    className="calligraphy-input"
+                    placeholder="Inscribe your signature..."
+                    value={typedSign}
+                    onChange={(e) => setTypedSign(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <label className="scroll-agree">
                 <input
                   type="checkbox"
                   checked={answers.accepted}
                   onChange={(e) => setAnswers({ ...answers, accepted: e.target.checked })}
                 />
-                <span>I confirm and bind my signature to this arc.</span>
+                <span>I solemnly accept this contract. No excuses.</span>
               </label>
             </div>
           </div>
@@ -248,8 +215,15 @@ export default function App() {
     if (qIndex < questions.length - 1) {
       setQIndex(qIndex + 1);
     } else {
-      if (!answers.signature) return alert('Please draw your signature to seal the oath.');
-      if (!answers.accepted) return alert('Please check the confirmation box.');
+      if (signStyle === 'thumb' && !hasThumbprint) {
+        return alert('Please stamp your thumbprint on the wax seal.');
+      }
+      if (signStyle === 'type' && !typedSign.trim()) {
+        return alert('Please inscribe your signature in script.');
+      }
+      if (!answers.accepted) {
+        return alert('Please check the confirmation box.');
+      }
 
       const hero = matchArchetype(answers.goal);
       setGameState({
@@ -257,19 +231,21 @@ export default function App() {
         day: 1,
         totalDays: answers.duration,
         streak: 1,
-        trophies: 2,
-        xp: 301,
+        trophies: 3,
+        xp: 320,
         level: 2,
         heroKey: hero.id,
         goal: answers.goal,
         hobby: answers.hobby,
+        studyHours: answers.studyHours,
+        glowLevel: 78, // Skin Care Glow-up metric
         completedQuestIds: [],
         ratings: {
-          WISDOM: 52,
-          CONFIDENCE: 113,
-          STRENGTH: 124,
-          DISCIPLINE: 175,
-          FOCUS: 186
+          WISDOM: 55,
+          CONFIDENCE: 114,
+          STRENGTH: 130,
+          DISCIPLINE: 180,
+          FOCUS: 195
         }
       });
       setView('dashboard');
@@ -303,13 +279,18 @@ export default function App() {
         completedQuestIds: [...prev.completedQuestIds, quest.id],
         xp: nextXP,
         level: nextLevel,
+        glowLevel: quest.glowUp ? Math.min(100, prev.glowLevel + 6) : prev.glowLevel,
         ratings: {
           ...prev.ratings,
-          [quest.stat]: (prev.ratings[quest.stat] || 50) + 4
+          [quest.stat]: (prev.ratings[quest.stat] || 50) + 5
         }
       }));
 
-      setToast({ xp: quest.xp, stat: quest.stat });
+      setToast({
+        xp: quest.xp,
+        stat: quest.stat,
+        glow: quest.glowUp ? '+6% Skin Glow' : null
+      });
       setTimeout(() => setToast(null), 2500);
     }
   }
@@ -320,16 +301,19 @@ export default function App() {
       setGameState(null);
       setView('landing');
       setQIndex(0);
+      setHasThumbprint(false);
+      setTypedSign('');
     }
   }
 
+  // --- SCREEN 1: LANDING ---
   if (view === 'landing') {
     return (
       <div className="mobile-frame">
         <div className="landing-layout">
           <div className="landing-badge">✦ WINTER ARC RPG</div>
           <h1 className="landing-title">START YOUR OWN<br /><span>WINTER ARC</span></h1>
-          <p className="landing-desc">Turn your goals into daily quests. Awaken an anime alter-ego that evolves as you level up.</p>
+          <p className="landing-desc">Heavy study arcs, physical looksmaxing, and character awakenings.</p>
           <div className="landing-hero-box">
             <img
               src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80"
@@ -344,38 +328,41 @@ export default function App() {
     );
   }
 
+  // --- SCREEN 2: COMPACT 1-QUESTION-AT-A-TIME WIZARD ---
   if (view === 'wizard') {
     const curQ = questions[qIndex];
     const progress = ((qIndex + 1) / questions.length) * 100;
 
     return (
-      <div className="mobile-frame">
-        <div className="wizard-header">
+      <div className="mobile-frame wizard-mode">
+        <div className="wizard-top-nav">
           <button className="back-link" onClick={prevQuestion}>‹ Back</button>
-          <span>STEP {qIndex + 1} OF {questions.length}</span>
+          <span className="step-counter">STEP {qIndex + 1} OF {questions.length}</span>
         </div>
 
         <div className="progress-track">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="wizard-body">
-          <span className="phase-tag">INITIALIZING ARC</span>
-          <h2 className="q-title">{curQ.title}</h2>
-          <p className="q-desc">{curQ.subtitle}</p>
+        {/* Compact tight container with zero wasted gap */}
+        <div className="compact-q-wrapper">
+          <span className="phase-tag">WINTER PROTOCOL</span>
+          <h2 className="q-title-large">{curQ.title}</h2>
+          <p className="q-subtitle-clean">{curQ.subtitle}</p>
 
-          <div className="q-content">{curQ.render()}</div>
+          <div className="q-render-area">{curQ.render()}</div>
         </div>
 
-        <button className="primary-pill-btn" onClick={nextQuestion}>
-          {qIndex === questions.length - 1 ? 'AWAKEN & BEGIN ARC →' : 'CONTINUE →'}
+        <button className="primary-pill-btn continue-btn-tight" onClick={nextQuestion}>
+          {qIndex === questions.length - 1 ? 'SEAL COVENANT & AWAKEN →' : 'CONTINUE →'}
         </button>
       </div>
     );
   }
 
+  // --- SCREEN 3: DASHBOARD ---
   const activeHero = Object.values(ARCHETYPES).find((h) => h.id === gameState.heroKey) || ARCHETYPES.discipline;
-  const quests = generateDynamicQuests(gameState.level, gameState.goal, gameState.hobby);
+  const quests = generateDynamicQuests(gameState.level, gameState.studyHours, gameState.hobby);
   const todoQuests = quests.filter((q) => !gameState.completedQuestIds.includes(q.id));
   const doneQuests = quests.filter((q) => gameState.completedQuestIds.includes(q.id));
 
@@ -407,12 +394,14 @@ export default function App() {
             </div>
             <div className="toast-sub">
               <span>{toast.stat}</span>
-              <strong>+4 pts</strong>
+              <strong>+5 pts</strong>
             </div>
+            {toast.glow && <div className="toast-glow-boost">{toast.glow}</div>}
           </div>
         </div>
       )}
 
+      {/* Switcher */}
       <div className="top-tab-switcher">
         <button
           className={`switch-btn ${dashboardTab === 'quests' ? 'active' : ''}`}
@@ -424,7 +413,7 @@ export default function App() {
           className={`switch-btn ${dashboardTab === 'progress' ? 'active' : ''}`}
           onClick={() => setDashboardTab('progress')}
         >
-          PROGRESS
+          PROGRESS & GLOW
         </button>
       </div>
 
@@ -436,7 +425,7 @@ export default function App() {
               <span className="metric-pill pill-green">🏆 {gameState.trophies}</span>
               <span className="metric-pill pill-amber">✦ {gameState.xp}</span>
             </div>
-            <button className="reset-circle" onClick={resetGame} title="Reset">↻</button>
+            <button className="reset-circle" onClick={resetGame} title="Reset Arc">↻</button>
           </div>
 
           <div className="day-header-row">
@@ -447,6 +436,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Player Anime Card */}
           <div className="hero-card">
             <div className="hero-card-left">
               <h2 className="player-tag">{gameState.player}</h2>
@@ -469,7 +459,7 @@ export default function App() {
                 <div><span>CON</span><b>{gameState.ratings.DISCIPLINE}</b></div>
                 <div><span>FOC</span><b>{gameState.ratings.FOCUS}</b></div>
                 <div><span>STR</span><b>{gameState.ratings.STRENGTH}</b></div>
-                <div><span>WIS</span><b>{gameState.ratings.WISDOM}</b></div>
+                <div><span>GLOW</span><b>{gameState.glowLevel}%</b></div>
               </div>
             </div>
 
@@ -494,18 +484,16 @@ export default function App() {
             >
               Done <span>{doneQuests.length}</span>
             </button>
-            <button className="subtab-btn disabled">
-              Skipped <span>0</span>
-            </button>
           </div>
 
+          {/* Quests List */}
           <div className="quests-scroll-area">
             {questSubTab === 'todos' &&
               todoQuests.map((q) => (
                 <div
                   key={q.id}
                   className="quest-card-item"
-                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.25) 0%, rgba(10,10,14,0.92) 80%), url(${q.bg})` }}
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.2) 0%, rgba(10,10,14,0.94) 80%), url(${q.bg})` }}
                 >
                   <div className="quest-details">
                     <h3>{q.title}</h3>
@@ -513,12 +501,13 @@ export default function App() {
                       <span>🔁 {q.type}</span>
                       <span>📊 {q.difficulty}</span>
                       <span>⏱ {q.duration}</span>
+                      {q.glowUp && <span className="glow-badge">✨ GLOW UP</span>}
                     </div>
                   </div>
                   <button
                     className="quest-checkbox"
                     onClick={() => toggleQuest(q)}
-                    aria-label="Mark done"
+                    aria-label="Mark completed"
                   />
                 </div>
               ))}
@@ -528,13 +517,13 @@ export default function App() {
                 <div
                   key={q.id}
                   className="quest-card-item completed-card"
-                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.5) 0%, rgba(10,10,14,0.95) 80%), url(${q.bg})` }}
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.5) 0%, rgba(10,10,14,0.96) 80%), url(${q.bg})` }}
                 >
                   <div className="quest-details">
                     <h3 className="strikethrough">{q.title}</h3>
                     <div className="quest-meta-chips">
                       <span>COMPLETED</span>
-                      <span>+{q.xp} XP AWARDED</span>
+                      <span>+{q.xp} XP</span>
                     </div>
                   </div>
                   <button
@@ -546,18 +535,11 @@ export default function App() {
                   </button>
                 </div>
               ))}
-
-            {questSubTab === 'todos' && todoQuests.length === 0 && (
-              <div className="peak-reached-box">
-                <span className="peak-label">— PEAK REACHED —</span>
-                <p>Nothing left on the list today.</p>
-              </div>
-            )}
           </div>
 
           <div className="mobile-footer-nav">
             <span className="day-badge">DAY {gameState.day}</span>
-            <span>{doneQuests.length} of {quests.length} trials cleared</span>
+            <span>{doneQuests.length} of {quests.length} cleared</span>
             <button
               className="enter-pill"
               onClick={() => {
@@ -569,13 +551,26 @@ export default function App() {
                 }));
               }}
             >
-              ENTER →
+              NEXT DAY →
             </button>
           </div>
         </>
       ) : (
+        /* --- PROGRESS & SKINCARE GLOW-UP TAB --- */
         <div className="progress-screen">
-          <h2 className="rating-main-title">Your Rating</h2>
+          <h2 className="rating-main-title">Progress & Looksmaxing</h2>
+
+          {/* Skin Care & Glow Up Card */}
+          <div className="glow-up-metric-card">
+            <div className="glow-icon-box">✨</div>
+            <div className="glow-info">
+              <span className="glow-title">Skin Care & Complexion Glow</span>
+              <div className="glow-bar-container">
+                <div className="glow-bar-fill" style={{ width: `${gameState.glowLevel}%` }} />
+              </div>
+              <small>{gameState.glowLevel}% Hydrated & Clear</small>
+            </div>
+          </div>
 
           <div className="rating-summary-card">
             <div className="rating-box">
@@ -592,9 +587,6 @@ export default function App() {
             {Object.entries(gameState.ratings).map(([statName, val]) => (
               <div className="rating-row" key={statName}>
                 <div className="stat-title-left">
-                  <span className="stat-glyph">
-                    {statName === 'FOCUS' ? '◎' : statName === 'DISCIPLINE' ? '🔒' : statName === 'STRENGTH' ? '🏋' : statName === 'CONFIDENCE' ? '🏃' : '🔮'}
-                  </span>
                   <span>{statName}</span>
                 </div>
                 <div className="stat-val-right">
@@ -603,11 +595,6 @@ export default function App() {
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="quote-banner">
-            <p>"{activeHero.line}"</p>
-            <small>— {activeHero.name} ({stageName})</small>
           </div>
         </div>
       )}
