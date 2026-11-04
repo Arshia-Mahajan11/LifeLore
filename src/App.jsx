@@ -1,471 +1,255 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import './styles.css';
 
-const STORAGE_KEY = 'reset-arc-save-v1';
+const STORAGE_KEY = 'lifelore-save-v1';
 const XP_PER_LEVEL = 50;
 const STAT_GAIN_PER_QUEST = 4;
 
-const AREA_LIST = [
-  {
-    key: 'health',
-    label: 'Health',
-    icon: '✦',
-    description: 'Movement, sleep, nutrition, energy'
-  },
-  {
-    key: 'education',
-    label: 'Education',
-    icon: '⌘',
-    description: 'Study, learning, skills, focus'
-  },
-  {
-    key: 'mindset',
-    label: 'Mindset',
-    icon: '◌',
-    description: 'Confidence, calm, habits, self-trust'
-  },
-  {
-    key: 'career',
-    label: 'Career',
-    icon: '↗',
-    description: 'Work, projects, direction, progress'
-  },
-  {
-    key: 'relationships',
-    label: 'Relationships',
-    icon: '♡',
-    description: 'Connection, kindness, communication'
-  },
-  {
-    key: 'creativity',
-    label: 'Creativity',
-    icon: '✧',
-    description: 'Making, practicing, sharing ideas'
-  }
+const AREAS = [
+  { key: 'health', name: 'Health', symbol: '✧', description: 'Energy, sleep, movement' },
+  { key: 'education', name: 'Education', symbol: '⌘', description: 'Learning, study, skills' },
+  { key: 'mindset', name: 'Mindset', symbol: '☾', description: 'Calm, confidence, focus' },
+  { key: 'career', name: 'Career', symbol: '↗', description: 'Work, projects, direction' },
+  { key: 'relationships', name: 'Relationships', symbol: '♡', description: 'Connection, care, trust' },
+  { key: 'creativity', name: 'Creativity', symbol: '✦', description: 'Making, practicing, ideas' }
 ];
 
-const AREA_BY_KEY = Object.fromEntries(
-  AREA_LIST.map((area) => [area.key, area])
-);
-
-const PERSONAS = {
+const ARCHETYPES = {
   health: {
-    character: 'Aoi',
-    role: 'The Pulsekeeper',
-    accent: '#64e4d2',
-    shade: '#216e71',
-    hair: '#244653',
-    outfit: '#286c70',
-    tagline: 'Small promises build a stronger rhythm.'
+    name: 'Astra',
+    title: 'Starward Warden',
+    region: 'The Verdant Reach',
+    accent: '#91f0d8',
+    cloak: '#286c70',
+    cloakDark: '#174550',
+    hair: '#233c50',
+    tagline: 'A stronger rhythm begins with one kind promise.'
   },
   education: {
-    character: 'Rin',
-    role: 'The Star Scholar',
-    accent: '#b8a0ff',
-    shade: '#5543a2',
-    hair: '#34284f',
-    outfit: '#544b83',
-    tagline: 'Every focused minute opens another door.'
+    name: 'Neri',
+    title: 'Keeper of the Star Archive',
+    region: 'The Star Archive',
+    accent: '#c0a9ff',
+    cloak: '#594b91',
+    cloakDark: '#362c63',
+    hair: '#332949',
+    tagline: 'Every question is a door the world forgot to lock.'
   },
   mindset: {
-    character: 'Mika',
-    role: 'The Stillfire',
-    accent: '#8db4ff',
-    shade: '#355b9b',
-    hair: '#293957',
-    outfit: '#3a5a83',
-    tagline: 'You can be a work in progress and still be proud.'
+    name: 'Mira',
+    title: 'Moonwell Alchemist',
+    region: 'The Moonwell Crossing',
+    accent: '#91baff',
+    cloak: '#405d99',
+    cloakDark: '#283b68',
+    hair: '#283653',
+    tagline: 'Even a quiet light can guide you home.'
   },
   career: {
-    character: 'Kai',
-    role: 'The Wayfinder',
-    accent: '#ffc27b',
-    shade: '#9c623c',
-    hair: '#513642',
-    outfit: '#815137',
-    tagline: 'Direction is created by the next step.'
+    name: 'Tarin',
+    title: 'Ember Pathfinder',
+    region: 'The Ember March',
+    accent: '#ffc889',
+    cloak: '#9a613f',
+    cloakDark: '#64402e',
+    hair: '#533642',
+    tagline: 'The path appears beneath the step you choose.'
   },
   relationships: {
-    character: 'Hana',
-    role: 'The Heartweaver',
-    accent: '#ff9dbb',
-    shade: '#a34469',
-    hair: '#553246',
-    outfit: '#8a4966',
-    tagline: 'Connection grows through small acts of care.'
+    name: 'Lumi',
+    title: 'Heartwood Weaver',
+    region: 'The Heartwood',
+    accent: '#ffabc4',
+    cloak: '#974968',
+    cloakDark: '#60354e',
+    hair: '#533044',
+    tagline: 'Small acts of care can change an entire world.'
   },
   creativity: {
-    character: 'Sora',
-    role: 'The Dreamsmith',
-    accent: '#79d9ff',
-    shade: '#387ca4',
-    hair: '#283e5a',
-    outfit: '#376d91',
-    tagline: 'Make one small thing. Then make the next.'
+    name: 'Aeri',
+    title: 'Dreamsmith of the Unwritten',
+    region: 'The Unwritten Sea',
+    accent: '#86ddff',
+    cloak: '#397b99',
+    cloakDark: '#28516f',
+    hair: '#293d59',
+    tagline: 'The first draft is a spell that makes the next one possible.'
   }
 };
 
 const STAKES = {
   soft: {
-    label: 'Soft',
-    shields: 3,
-    penalty: 5,
+    name: 'Soft',
     symbol: '◇',
-    description: 'Room to find your rhythm',
-    detail: '3 shields · −5 XP if no shields remain'
+    wards: 3,
+    penalty: 5,
+    subtitle: 'A gentle beginning',
+    detail: '3 ward stones · −5 XP if none remain'
   },
   steady: {
-    label: 'Steady',
-    shields: 2,
-    penalty: 10,
+    name: 'Steady',
     symbol: '⬡',
-    description: 'A balanced commitment',
-    detail: '2 shields · −10 XP if no shields remain'
+    wards: 2,
+    penalty: 10,
+    subtitle: 'A balanced vow',
+    detail: '2 ward stones · −10 XP if none remain'
   },
   iron: {
-    label: 'Iron',
-    shields: 1,
-    penalty: 20,
+    name: 'Iron',
     symbol: '◆',
-    description: 'A tougher, focused challenge',
-    detail: '1 shield · −20 XP if no shields remain'
+    wards: 1,
+    penalty: 20,
+    subtitle: 'A bold undertaking',
+    detail: '1 ward stone · −20 XP if none remain'
   }
 };
 
 const STAT_ITEMS = [
-  { key: 'vitality', label: 'Vitality', icon: '✦' },
-  { key: 'focus', label: 'Focus', icon: '⌘' },
-  { key: 'resolve', label: 'Resolve', icon: '↗' },
-  { key: 'balance', label: 'Balance', icon: '◌' }
+  { key: 'vitality', name: 'Vitality', symbol: '✧' },
+  { key: 'focus', name: 'Focus', symbol: '⌘' },
+  { key: 'resolve', name: 'Resolve', symbol: '↗' },
+  { key: 'harmony', name: 'Harmony', symbol: '☾' }
 ];
 
-const EMPTY_PROFILE = {
+const PROFILE_DEFAULTS = {
   name: '',
-  lifeStage: 'school',
+  lifeStage: 'working',
   areas: ['health', 'education'],
   primaryGoal: 'health',
-  goalDetail: '',
   focusDetail: '',
+  goalDetail: '',
   why: '',
-  sleepHours: 7,
-  movement: 'rarely',
-  energy: 3,
-  stress: 3,
-  screenTime: '4-6',
+  sleepHours: '7',
+  movement: '1-2',
+  energy: '3',
+  stress: '3',
   routine: 'sometimes',
   obstacle: 'time',
   dailyMinutes: '15',
   bestTime: 'morning'
 };
 
-const FOCUS_PROMPTS = {
-  health: {
-    label: 'What health focus matters most right now?',
-    placeholder: 'Choose a health focus',
-    options: [
-      'Improve my sleep',
-      'Move more often',
-      'Build strength',
-      'Eat more intentionally',
-      'Increase my energy',
-      'Reduce stress'
-    ]
-  },
-  education: {
-    label: 'What are you learning or studying?',
-    placeholder: 'For example: biology, Japanese, a certification'
-  },
-  mindset: {
-    label: 'What inner skill are you building?',
-    placeholder: 'Choose a mindset focus',
-    options: [
-      'Confidence',
-      'Focus',
-      'Calm',
-      'Self-compassion',
-      'Consistency',
-      'Managing stress'
-    ]
-  },
-  career: {
-    label: 'What would you like to move forward?',
-    placeholder: 'For example: a portfolio, job search, work skill'
-  },
-  relationships: {
-    label: 'What kind of connection do you want to grow?',
-    placeholder: 'For example: family time, communication, friendships'
-  },
-  creativity: {
-    label: 'What would you like to make or practice?',
-    placeholder: 'For example: drawing, music, writing, photography'
-  }
-};
-
 const QUEST_BANK = {
   health: [
-    {
-      title: 'Get your body moving',
-      detail: 'Take a walk, stretch, or do a little movement that feels right.',
-      stat: 'vitality'
-    },
-    {
-      title: 'Fuel your energy',
-      detail: 'Make one thoughtful choice that helps you feel looked after.',
-      stat: 'vitality'
-    },
-    {
-      title: 'Protect your wind-down',
-      detail: 'Give yourself a few screen-free minutes before bed.',
-      stat: 'balance'
-    },
-    {
-      title: 'Make hydration easy',
-      detail: 'Keep water nearby and take a proper pause to drink.',
-      stat: 'vitality'
-    }
+    { title: 'Wake the body', detail: 'Take a walk, stretch, or move in a way that feels right.', stat: 'vitality' },
+    { title: 'Tend the wellspring', detail: 'Make one thoughtful choice that helps you feel looked after.', stat: 'vitality' },
+    { title: 'Guard the night sky', detail: 'Give yourself a few quiet, screen-free minutes before bed.', stat: 'harmony' },
+    { title: 'Drink from the spring', detail: 'Keep water nearby and pause to drink without rushing.', stat: 'vitality' }
   ],
   education: [
-    {
-      title: 'Start a focus sprint',
-      detail: 'Work on one learning task without switching tabs or tasks.',
-      stat: 'focus'
-    },
-    {
-      title: 'Review what you learned',
-      detail: 'Write down three things you remember from your last study session.',
-      stat: 'focus'
-    },
-    {
-      title: 'Ask one good question',
-      detail: 'Find one point you do not understand and investigate it.',
-      stat: 'resolve'
-    },
-    {
-      title: 'Practice a small skill',
-      detail: 'Do a short exercise instead of waiting to feel fully ready.',
-      stat: 'focus'
-    }
+    { title: 'Open the archive', detail: 'Give one learning task a focused start.', stat: 'focus' },
+    { title: 'Gather three fragments', detail: 'Write down three things you remember from a recent lesson.', stat: 'focus' },
+    { title: 'Follow a question', detail: 'Explore one thing you do not understand yet.', stat: 'resolve' },
+    { title: 'Practice the spell', detail: 'Repeat one small exercise instead of waiting to feel ready.', stat: 'focus' }
   ],
   mindset: [
-    {
-      title: 'Name what is on your mind',
-      detail: 'Write a few honest lines without trying to make them perfect.',
-      stat: 'balance'
-    },
-    {
-      title: 'Take a quiet reset',
-      detail: 'Pause for a few slow breaths and notice how you feel.',
-      stat: 'balance'
-    },
-    {
-      title: 'Keep one small promise',
-      detail: 'Choose a manageable action and follow it through.',
-      stat: 'resolve'
-    },
-    {
-      title: 'Notice a small win',
-      detail: 'Give yourself credit for one thing you did today.',
-      stat: 'balance'
-    }
+    { title: 'Read the inner weather', detail: 'Write a few honest lines about what is on your mind.', stat: 'harmony' },
+    { title: 'Visit the quiet moonwell', detail: 'Take a few slow breaths and notice how you feel.', stat: 'harmony' },
+    { title: 'Keep a small vow', detail: 'Choose one manageable action and follow it through.', stat: 'resolve' },
+    { title: 'Find the hidden glimmer', detail: 'Give yourself credit for one thing you did today.', stat: 'harmony' }
   ],
   career: [
-    {
-      title: 'Move one priority forward',
-      detail: 'Give one useful work or career task a focused start.',
-      stat: 'resolve'
-    },
-    {
-      title: 'Clear one point of friction',
-      detail: 'Organize one small part of your workspace or task list.',
-      stat: 'resolve'
-    },
-    {
-      title: 'Build a useful skill',
-      detail: 'Spend a little time practicing a skill that matters to you.',
-      stat: 'focus'
-    },
-    {
-      title: 'Make the next step obvious',
-      detail: 'Write down the single next action for a project you care about.',
-      stat: 'resolve'
-    }
+    { title: 'Move the compass', detail: 'Give one useful work or career task a focused start.', stat: 'resolve' },
+    { title: 'Clear the brambles', detail: 'Organize one small part of your workspace or task list.', stat: 'resolve' },
+    { title: 'Train a useful skill', detail: 'Spend a little time practicing a skill that matters to you.', stat: 'focus' },
+    { title: 'Mark the next trail', detail: 'Write down the single next action for a project you care about.', stat: 'resolve' }
   ],
   relationships: [
-    {
-      title: 'Make a thoughtful connection',
-      detail: 'Send a kind message or check in with someone you value.',
-      stat: 'balance'
-    },
-    {
-      title: 'Give someone your attention',
-      detail: 'Have a short conversation without multitasking.',
-      stat: 'balance'
-    },
-    {
-      title: 'Show appreciation',
-      detail: 'Tell someone one specific thing you appreciate about them.',
-      stat: 'resolve'
-    },
-    {
-      title: 'Make space for connection',
-      detail: 'Create a little time for someone important to you.',
-      stat: 'balance'
-    }
+    { title: 'Send a little warmth', detail: 'Send a kind message or check in with someone you value.', stat: 'harmony' },
+    { title: 'Offer your attention', detail: 'Have a short conversation without multitasking.', stat: 'harmony' },
+    { title: 'Name what you appreciate', detail: 'Tell someone one specific thing you appreciate about them.', stat: 'resolve' },
+    { title: 'Make room at the hearth', detail: 'Create a little time for someone important to you.', stat: 'harmony' }
   ],
   creativity: [
-    {
-      title: 'Make a small thing',
-      detail: 'Create something without judging whether it is finished or good.',
-      stat: 'focus'
-    },
-    {
-      title: 'Practice your craft',
-      detail: 'Spend a little time repeating one useful creative skill.',
-      stat: 'focus'
-    },
-    {
-      title: 'Collect inspiration',
-      detail: 'Save an idea, image, sound, or note that sparks your curiosity.',
-      stat: 'balance'
-    },
-    {
-      title: 'Share or save your progress',
-      detail: 'Keep a record of something you made or practiced today.',
-      stat: 'resolve'
-    }
+    { title: 'Make a small wonder', detail: 'Create something without judging whether it is finished or good.', stat: 'focus' },
+    { title: 'Practice your craft', detail: 'Repeat one useful creative skill for a little while.', stat: 'focus' },
+    { title: 'Gather a spark', detail: 'Save an idea, image, sound, or note that makes you curious.', stat: 'harmony' },
+    { title: 'Leave a trace', detail: 'Save a record of something you made or practiced today.', stat: 'resolve' }
   ]
 };
 
 const RESET_QUESTS = [
-  {
-    title: 'Set tomorrow up',
-    detail: 'Spend five minutes making one part of tomorrow easier.',
-    stat: 'resolve'
-  },
-  {
-    title: 'Give your attention a breather',
-    detail: 'Take a short screen-free pause and notice how you feel.',
-    stat: 'balance'
-  },
-  {
-    title: 'Close the day kindly',
-    detail: 'Write down one thing you did today that you want to repeat.',
-    stat: 'balance'
-  },
-  {
-    title: 'Reset one small space',
-    detail: 'Make one corner of your environment easier to return to.',
-    stat: 'resolve'
-  }
+  { title: 'Prepare the next page', detail: 'Spend five minutes making one part of tomorrow easier.', stat: 'resolve' },
+  { title: 'Let the lantern rest', detail: 'Take a short screen-free pause and notice how you feel.', stat: 'harmony' },
+  { title: 'Record a small victory', detail: 'Write down one thing from today you want to remember.', stat: 'harmony' },
+  { title: 'Restore your camp', detail: 'Reset one small space so it is easier to return to.', stat: 'resolve' }
 ];
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function areaLabel(key) {
-  return AREA_BY_KEY[key]?.label || 'Growth';
+function getAreaName(key) {
+  return AREAS.find((area) => area.key === key)?.name || 'Growth';
 }
 
-function getPersona(profile) {
-  return PERSONAS[profile?.primaryGoal] || PERSONAS.mindset;
+function getArchetype(profile) {
+  return ARCHETYPES[profile?.primaryGoal] || ARCHETYPES.mindset;
 }
 
 function getLevel(xp = 0) {
   return Math.floor(Math.max(0, xp) / XP_PER_LEVEL) + 1;
 }
 
-function getInitialStats(profile) {
-  const sleep = Number(profile.sleepHours || 7);
-  const energy = Number(profile.energy || 3);
-  const stress = Number(profile.stress || 3);
+function getBaseStats(profile) {
+  const sleep = Number(profile?.sleepHours || 7);
+  const energy = Number(profile?.energy || 3);
+  const stress = Number(profile?.stress || 3);
 
-  const movementScore = {
+  const movement = {
     rarely: 0,
-    '1-2': 4,
-    '3-4': 8,
-    '5+': 12
-  }[profile.movement] ?? 0;
+    '1-2': 5,
+    '3-4': 9,
+    '5+': 13
+  }[profile?.movement] ?? 0;
 
-  const routineScore = {
+  const routine = {
     inconsistent: 0,
-    sometimes: 6,
-    steady: 12
-  }[profile.routine] ?? 0;
-
-  const screenScore = {
-    under2: 8,
-    '2-4': 4,
-    '4-6': 0,
-    '6+': -4
-  }[profile.screenTime] ?? 0;
+    sometimes: 7,
+    steady: 13
+  }[profile?.routine] ?? 0;
 
   return {
-    vitality: clamp(
-      Math.round(34 + (sleep - 6) * 4 + movementScore + (energy - 3) * 3),
-      20,
-      70
-    ),
-    focus: clamp(
-      Math.round(38 + (energy - 3) * 3 + screenScore),
-      20,
-      70
-    ),
-    resolve: clamp(
-      Math.round(
-        34 +
-          routineScore +
-          (profile.obstacle === 'motivation' ? -3 : 0)
-      ),
-      20,
-      70
-    ),
-    balance: clamp(
-      Math.round(40 + (3 - stress) * 4 + (sleep >= 7 ? 3 : 0)),
-      20,
-      70
-    )
+    vitality: clamp(Math.round(35 + (sleep - 6) * 3 + movement + (energy - 3) * 3), 20, 70),
+    focus: clamp(Math.round(39 + (energy - 3) * 3), 20, 70),
+    resolve: clamp(Math.round(34 + routine), 20, 70),
+    harmony: clamp(Math.round(43 + (3 - stress) * 4 + (sleep >= 7 ? 3 : 0)), 20, 70)
   };
 }
 
-function makeDailyQuests(profile, day) {
+function makeQuests(profile, day) {
   const mainKey = profile?.primaryGoal || 'mindset';
   const mainBank = QUEST_BANK[mainKey] || QUEST_BANK.mindset;
   const mainTemplate = mainBank[(day - 1) % mainBank.length];
 
-  const secondaryAreas = (profile?.areas || []).filter(
-    (area) => area !== mainKey
-  );
-
-  const secondaryKey =
-    secondaryAreas.length > 0
-      ? secondaryAreas[(day - 1) % secondaryAreas.length]
-      : mainKey === 'health'
-        ? 'mindset'
-        : 'health';
+  const secondaryAreas = (profile?.areas || []).filter((area) => area !== mainKey);
+  const secondaryKey = secondaryAreas.length
+    ? secondaryAreas[(day - 1) % secondaryAreas.length]
+    : mainKey === 'health'
+      ? 'mindset'
+      : 'health';
 
   const secondaryBank = QUEST_BANK[secondaryKey] || QUEST_BANK.health;
-  const secondaryTemplate =
-    secondaryBank[(day + 1) % secondaryBank.length];
+  const secondaryTemplate = secondaryBank[(day + 1) % secondaryBank.length];
+  const ritual = RESET_QUESTS[(day - 1) % RESET_QUESTS.length];
 
-  const resetTemplate = RESET_QUESTS[(day - 1) % RESET_QUESTS.length];
-  const goal = profile?.goalDetail?.trim();
   const focus = profile?.focusDetail?.trim();
+  const goal = profile?.goalDetail?.trim();
   const minutes = Number(profile?.dailyMinutes || 15);
 
-  const personalDetail = goal
-    ? `${focus ? `${focus}: ` : ''}Give “${goal}” ${minutes} focused minutes. Break it into one small, finishable step.`
-    : mainTemplate.detail;
+  const personalQuest = {
+    id: `day-${day}-main`,
+    title: focus ? `Take a step toward ${focus}` : mainTemplate.title,
+    detail: goal
+      ? `Give your goal ${minutes} focused minutes. Begin with one small step: ${goal}`
+      : mainTemplate.detail,
+    category: mainKey,
+    stat: mainTemplate.stat,
+    xp: 10
+  };
 
   return [
-    {
-      id: `day-${day}-main`,
-      title: goal ? 'Move your main goal forward' : mainTemplate.title,
-      detail: personalDetail,
-      category: mainKey,
-      stat: mainTemplate.stat,
-      xp: 10
-    },
+    personalQuest,
     {
       id: `day-${day}-support`,
       title: secondaryTemplate.title,
@@ -475,78 +259,167 @@ function makeDailyQuests(profile, day) {
       xp: 10
     },
     {
-      id: `day-${day}-reset`,
-      title: resetTemplate.title,
-      detail: resetTemplate.detail,
-      category: 'reset',
-      stat: resetTemplate.stat,
+      id: `day-${day}-ritual`,
+      title: ritual.title,
+      detail: ritual.detail,
+      category: 'ritual',
+      stat: ritual.stat,
       xp: 10
     }
   ];
 }
 
-function readSavedData() {
-  if (typeof window === 'undefined') {
-    return {};
-  }
-
+function readSave() {
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function formatDate(dateString) {
-  if (!dateString) {
-    return 'Today';
-  }
+function formatDate(date) {
+  if (!date) return 'Today';
 
   try {
     return new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
-    }).format(new Date(dateString));
+    }).format(new Date(date));
   } catch {
     return 'Today';
   }
 }
 
-function SiteHeader({ challenge, showRestart, onRestart }) {
+function Avatar({ profile, level = 1, className = '' }) {
+  const archetype = getArchetype(profile);
+  const rawId = useId();
+  const id = rawId.replace(/[^a-zA-Z0-9_-]/g, '') || 'lore';
+  const hasGear = level >= 3;
+  const hasAura = level >= 5;
+  const hasCrown = level >= 7;
+  const form = hasCrown ? 'CROWNED' : hasAura ? 'AWAKENED' : hasGear ? 'GEARED' : 'WANDERER';
+
+  return (
+    <div className={`avatar ${className}`} style={{ '--avatar-accent': archetype.accent }}>
+      <svg
+        className="avatar-svg"
+        viewBox="0 0 250 290"
+        role="img"
+        aria-label={`${archetype.name}, ${archetype.title}, level ${level}`}
+      >
+        <defs>
+          <radialGradient id={`${id}-glow`} cx="50%" cy="48%" r="55%">
+            <stop offset="0%" stopColor={archetype.accent} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={archetype.accent} stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id={`${id}-cape`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={archetype.cloak} />
+            <stop offset="100%" stopColor={archetype.cloakDark} />
+          </linearGradient>
+        </defs>
+
+        <circle cx="125" cy="139" r="112" fill={`url(#${id}-glow)`} />
+
+        {hasAura && (
+          <g className="avatar-aura">
+            <circle cx="125" cy="137" r="88" fill="none" stroke={archetype.accent} strokeWidth="1.5" strokeDasharray="3 8" opacity="0.75" />
+            <circle cx="125" cy="137" r="99" fill="none" stroke={archetype.accent} strokeWidth="2" opacity="0.26" />
+            <path d="M125 31V17 M206 72l11-9 M44 72 33 63 M217 146h14 M33 146H19" stroke={archetype.accent} strokeWidth="2" strokeLinecap="round" />
+          </g>
+        )}
+
+        {hasAura && (
+          <path
+            d="M76 151 Q125 175 174 151 L210 249 Q125 233 40 249 Z"
+            fill={`url(#${id}-cape)`}
+            stroke={archetype.accent}
+            strokeWidth="1.4"
+            opacity="0.9"
+          />
+        )}
+
+        <ellipse cx="125" cy="267" rx="70" ry="10" fill="#020711" opacity="0.45" />
+
+        <path d="M83 177 Q94 155 113 155h24q20 0 31 22l17 67q-60 23-120 0z" fill={archetype.cloak} stroke="#111a2b" strokeWidth="3" />
+        <path d="M83 183q-19 7-22 26l-5 26q13 8 27 2l13-43z" fill={archetype.cloakDark} stroke="#111a2b" strokeWidth="3" />
+        <path d="M167 183q19 7 22 26l5 26q-13 8-27 2l-13-43z" fill={archetype.cloakDark} stroke="#111a2b" strokeWidth="3" />
+
+        <path d="M110 146v30q15 14 30 0v-30" fill="#eeb69e" stroke="#1a2333" strokeWidth="2" />
+        <path d="M101 183l24 23 24-23" fill="none" stroke={archetype.accent} strokeWidth="3" />
+        <path d="M94 218q31 14 62 0" fill="none" stroke="#f5dfb0" strokeWidth="2" opacity="0.75" />
+
+        <path d="M79 99Q67 47 100 27q31-19 65 2 34 21 20 78l-8 42q-15-15-19-41h-65q-2 25-20 42z" fill={archetype.hair} stroke="#141b2a" strokeWidth="3" />
+        <circle cx="81" cy="107" r="10" fill="#edbaa1" />
+        <circle cx="169" cy="107" r="10" fill="#edbaa1" />
+        <ellipse cx="125" cy="102" rx="45" ry="55" fill="#f2c4a8" stroke="#182234" strokeWidth="3" />
+
+        <path d="M82 84q5-45 43-49 42-3 49 48-13-15-25-17-11 14-24 11-14 13-27-2-8 10-16 9z" fill={archetype.hair} stroke="#141b2a" strokeWidth="2" />
+        <path d="M85 81q2-30 28-38-12 19-8 42z" fill={archetype.hair} />
+
+        <ellipse cx="108" cy="106" rx="9" ry="12" fill="#fff7eb" />
+        <ellipse cx="142" cy="106" rx="9" ry="12" fill="#fff7eb" />
+        <ellipse cx="109" cy="108" rx="5" ry="7" fill={archetype.accent} />
+        <ellipse cx="141" cy="108" rx="5" ry="7" fill={archetype.accent} />
+        <circle cx="110" cy="109" r="2.5" fill="#172033" />
+        <circle cx="142" cy="109" r="2.5" fill="#172033" />
+        <circle cx="111" cy="105" r="1.8" fill="#fff" />
+        <circle cx="143" cy="105" r="1.8" fill="#fff" />
+
+        <path d="M100 94q8-6 15-1 M135 93q7-5 15 1" fill="none" stroke={archetype.hair} strokeWidth="3" strokeLinecap="round" />
+        <path d="M125 112l-3 10 M117 132q8 7 16 0" fill="none" stroke="#a75f67" strokeWidth="2" strokeLinecap="round" />
+        <ellipse cx="96" cy="123" rx="7" ry="3" fill="#ed7f87" opacity="0.22" />
+        <ellipse cx="154" cy="123" rx="7" ry="3" fill="#ed7f87" opacity="0.22" />
+
+        {hasGear && (
+          <g>
+            <path d="M80 178q12-12 25-5l-7 24q-14 5-25-6z" fill="#e4c47b" stroke="#fff0bd" strokeWidth="2" />
+            <path d="M170 178q-12-12-25-5l7 24q14 5 25-6z" fill="#e4c47b" stroke="#fff0bd" strokeWidth="2" />
+            <path d="M96 184l29 22 29-22" fill="none" stroke="#f5db9a" strokeWidth="5" strokeLinecap="round" />
+            <circle cx="125" cy="206" r="6" fill={archetype.accent} />
+          </g>
+        )}
+
+        {hasCrown && (
+          <g>
+            <path d="M99 40l5-19 14 13 7-20 9 20 14-13 4 19z" fill="#f8d47f" stroke="#fff0b4" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M101 42h48" stroke="#fff0b4" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="125" cy="30" r="3" fill={archetype.accent} />
+          </g>
+        )}
+      </svg>
+      <span className="avatar-rank">{form}</span>
+    </div>
+  );
+}
+
+function Header({ challenge, hasSave, onNewStory }) {
   return (
     <header className="topbar">
-      <div className="brand-lockup">
-        <div className="brand-mark" aria-hidden="true">
-          ✦
-        </div>
+      <div className="brand">
+        <div className="brand-sigil" aria-hidden="true">✦</div>
         <div>
-          <div className="brand-name">
-            RESET<span>ARC</span>
-          </div>
-          <div className="brand-caption">BUILD THE NEXT YOU</div>
+          <div className="brand-name">Life<span>Lore</span></div>
+          <div className="brand-caption">YOUR LIFE IS A GAME</div>
         </div>
       </div>
 
-      <div className="topbar-right">
+      <div className="header-actions">
         {challenge ? (
-          <div className="header-challenge">
-            <span className="live-dot" />
-            <span>
-              DAY {challenge.currentDay} / {challenge.duration}
-            </span>
-            <span className="header-divider" />
+          <div className="chapter-indicator">
+            <span className="tiny-star">✦</span>
+            <span>CHAPTER {challenge.currentDay} / {challenge.duration}</span>
+            <i />
             <strong>{challenge.xp} XP</strong>
           </div>
         ) : (
-          <div className="topbar-note">A SMALL-STEP RPG FOR REAL LIFE</div>
+          <span className="header-whisper">A WORLD WRITTEN BY YOU</span>
         )}
 
-        {showRestart && (
-          <button className="header-reset" type="button" onClick={onRestart}>
-            <span aria-hidden="true">↺</span>
-            <span>Start over</span>
+        {hasSave && (
+          <button className="new-story-button" type="button" onClick={onNewStory}>
+            <span>↺</span> New story
           </button>
         )}
       </div>
@@ -554,518 +427,199 @@ function SiteHeader({ challenge, showRestart, onRestart }) {
   );
 }
 
-function AnimeAvatar({ profile, level = 1, className = '' }) {
-  const persona = getPersona(profile);
-  const rawId = useId();
-  const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
-  const awakened = level >= 5;
-  const geared = level >= 3;
-  const crowned = level >= 7;
-
-  const stageLabel = crowned
-    ? 'ASCENDED'
-    : awakened
-      ? 'AWAKENED'
-      : geared
-        ? 'GEARED'
-        : 'ROOKIE';
-
-  return (
-    <div
-      className={`avatar-wrap ${className}`}
-      style={{ '--avatar-accent': persona.accent }}
-    >
-      <svg
-        className="anime-avatar"
-        viewBox="0 0 260 300"
-        role="img"
-        aria-label={`${persona.character}, ${persona.role}, level ${level}`}
-      >
-        <defs>
-          <radialGradient id={`${uid}-halo`} cx="50%" cy="45%" r="55%">
-            <stop offset="0%" stopColor={persona.accent} stopOpacity="0.32" />
-            <stop offset="100%" stopColor={persona.accent} stopOpacity="0" />
-          </radialGradient>
-
-          <linearGradient
-            id={`${uid}-cape`}
-            x1="0"
-            y1="0"
-            x2="1"
-            y2="1"
-          >
-            <stop offset="0%" stopColor={persona.accent} />
-            <stop offset="100%" stopColor={persona.shade} />
-          </linearGradient>
-
-          <filter id={`${uid}-glow`} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="5" />
-          </filter>
-        </defs>
-
-        <circle cx="130" cy="140" r="116" fill={`url(#${uid}-halo)`} />
-
-        {awakened && (
-          <g className="avatar-aura">
-            <circle
-              cx="130"
-              cy="137"
-              r="94"
-              fill="none"
-              stroke={persona.accent}
-              strokeWidth="3"
-              opacity="0.34"
-              filter={`url(#${uid}-glow)`}
-            />
-            <circle
-              cx="130"
-              cy="137"
-              r="86"
-              fill="none"
-              stroke={persona.accent}
-              strokeWidth="1.5"
-              strokeDasharray="4 9"
-              opacity="0.7"
-            />
-            <path
-              d="M130 27 L130 12 M210 73 L222 64 M50 73 L38 64 M220 151 L238 151 M40 151 L22 151"
-              stroke={persona.accent}
-              strokeWidth="2"
-              strokeLinecap="round"
-              opacity="0.8"
-            />
-          </g>
-        )}
-
-        {awakened && (
-          <path
-            d="M77 151 Q130 176 183 151 L218 256 Q130 234 42 256 Z"
-            fill={`url(#${uid}-cape)`}
-            opacity="0.88"
-            stroke={persona.accent}
-            strokeWidth="1.5"
-          />
-        )}
-
-        <ellipse
-          cx="130"
-          cy="271"
-          rx="76"
-          ry="11"
-          fill="#02060d"
-          opacity="0.42"
-        />
-
-        <path
-          d="M83 174 Q92 155 113 154 L147 154 Q169 156 178 174 L194 250 Q130 274 66 250 Z"
-          fill={persona.outfit}
-          stroke="#101827"
-          strokeWidth="3"
-        />
-
-        <path
-          d="M83 180 Q66 185 61 207 L57 235 Q72 243 83 237 L96 195 Z"
-          fill={persona.shade}
-          stroke="#101827"
-          strokeWidth="3"
-        />
-
-        <path
-          d="M177 180 Q194 185 199 207 L203 235 Q188 243 177 237 L164 195 Z"
-          fill={persona.shade}
-          stroke="#101827"
-          strokeWidth="3"
-        />
-
-        <path
-          d="M112 149 L112 180 Q130 194 148 180 L148 149"
-          fill="#edb99f"
-          stroke="#172033"
-          strokeWidth="2"
-        />
-
-        <path
-          d="M107 181 L130 204 L153 181"
-          fill="none"
-          stroke={persona.accent}
-          strokeWidth="3"
-          opacity="0.9"
-        />
-
-        <path
-          d="M91 214 Q130 231 169 214"
-          fill="none"
-          stroke="#f6e2b7"
-          strokeWidth="2"
-          opacity="0.72"
-        />
-
-        <path
-          d="M75 96 Q61 45 99 25 Q133 7 166 28 Q199 50 185 105 L177 148 Q159 132 154 107 L102 108 Q99 135 81 150 Z"
-          fill={persona.hair}
-          stroke="#141a29"
-          strokeWidth="3"
-        />
-
-        <circle cx="82" cy="106" r="10" fill="#efbea5" />
-        <circle cx="178" cy="106" r="10" fill="#efbea5" />
-
-        <ellipse
-          cx="130"
-          cy="101"
-          rx="47"
-          ry="57"
-          fill="#f3c6aa"
-          stroke="#172033"
-          strokeWidth="3"
-        />
-
-        <path
-          d="M87 84 Q91 37 130 35 Q174 34 177 84 Q166 69 153 67 Q143 82 132 78 Q117 91 104 73 Q97 83 87 84 Z"
-          fill={persona.hair}
-          stroke="#141a29"
-          strokeWidth="2"
-        />
-
-        <path
-          d="M88 78 Q91 48 112 41 Q103 63 106 81 Z"
-          fill={persona.hair}
-          opacity="0.96"
-        />
-
-        <ellipse cx="111" cy="106" rx="10" ry="13" fill="#fff7ec" />
-        <ellipse cx="149" cy="106" rx="10" ry="13" fill="#fff7ec" />
-        <ellipse cx="112" cy="108" rx="5.5" ry="8" fill={persona.accent} />
-        <ellipse cx="148" cy="108" rx="5.5" ry="8" fill={persona.accent} />
-        <circle cx="113" cy="109" r="2.6" fill="#172033" />
-        <circle cx="149" cy="109" r="2.6" fill="#172033" />
-        <circle cx="114.5" cy="105.5" r="2" fill="#ffffff" />
-        <circle cx="150.5" cy="105.5" r="2" fill="#ffffff" />
-
-        <path
-          d="M105 93 Q112 88 119 93 M141 93 Q148 88 155 93"
-          fill="none"
-          stroke={persona.hair}
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-
-        <path
-          d="M130 112 L127 122"
-          fill="none"
-          stroke="#cf8f7c"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        />
-
-        <path
-          d="M121 132 Q130 139 139 132"
-          fill="none"
-          stroke="#9f4e60"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-
-        <ellipse cx="99" cy="122" rx="8" ry="3" fill="#ef8d91" opacity="0.22" />
-        <ellipse cx="160" cy="122" rx="8" ry="3" fill="#ef8d91" opacity="0.22" />
-
-        {geared && (
-          <g className="avatar-gear">
-            <path
-              d="M80 177 Q91 165 104 172 L98 196 Q85 200 73 190 Z"
-              fill="#e7c77f"
-              stroke="#fff0c0"
-              strokeWidth="2"
-            />
-            <path
-              d="M180 177 Q169 165 156 172 L162 196 Q175 200 187 190 Z"
-              fill="#e7c77f"
-              stroke="#fff0c0"
-              strokeWidth="2"
-            />
-            <path
-              d="M96 184 L130 205 L164 184"
-              fill="none"
-              stroke="#f5db9a"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
-            <circle cx="130" cy="205" r="6" fill={persona.accent} />
-          </g>
-        )}
-
-        {crowned && (
-          <g className="avatar-crown">
-            <path
-              d="M103 38 L107 19 L120 31 L130 13 L140 31 L153 19 L157 40 Z"
-              fill="#ffd982"
-              stroke="#fff2c2"
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M105 40 L155 40"
-              stroke="#fff2c2"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-            <circle cx="130" cy="28" r="3" fill={persona.accent} />
-          </g>
-        )}
-      </svg>
-
-      <div className="avatar-rank">{stageLabel}</div>
-    </div>
-  );
-}
-
 function LandingScreen({ onStart }) {
-  const demoProfile = {
-    primaryGoal: 'creativity',
-    areas: ['creativity', 'mindset']
-  };
+  const demo = { primaryGoal: 'creativity' };
 
   return (
     <main>
-      <section className="landing-hero">
-        <div className="landing-copy">
-          <div className="eyebrow">
-            <span className="eyebrow-dot" />
-            YOUR NEXT CHAPTER STARTS SMALL
-          </div>
-
-          <h1>
-            Turn the life you want into your <em>next arc.</em>
-          </h1>
-
-          <p className="landing-lede">
-            Build a challenge around your real goals, complete small daily
-            quests, and watch your character grow alongside you.
+      <section className="hero">
+        <div className="hero-copy">
+          <div className="eyebrow"><span className="spark-dot" /> A DIFFERENT KIND OF ADVENTURE</div>
+          <h1>Your life is a <em>game.</em></h1>
+          <p className="hero-subtitle">
+            Somewhere beyond the ordinary, a page is waiting for your name.
+            Build a quest around the life you want—and meet the companion who
+            will grow alongside you.
           </p>
 
-          <div className="landing-actions">
+          <div className="hero-actions">
             <button className="button button-primary button-large" onClick={onStart}>
-              Build my reset
-              <span aria-hidden="true">↗</span>
+              Enter the living story <span>↗</span>
             </button>
-            <span className="landing-no-pressure">No perfect days required.</span>
+            <span className="hero-promise">No streaks. No perfect days. Just your next move.</span>
           </div>
 
-          <div className="landing-mini-stats">
-            <div>
-              <strong>01</strong>
-              <span>Know your starting point</span>
-            </div>
-            <div>
-              <strong>02</strong>
-              <span>Sign your own challenge</span>
-            </div>
-            <div>
-              <strong>03</strong>
-              <span>Level up through action</span>
-            </div>
+          <div className="hero-chapters">
+            <div><b>01</b><span>Discover your world</span></div>
+            <div><b>02</b><span>Make a living oath</span></div>
+            <div><b>03</b><span>Change your legend</span></div>
           </div>
         </div>
 
-        <div className="hero-art-wrap">
-          <div className="hero-art-card">
-            <div className="hero-orbit hero-orbit-one" />
-            <div className="hero-orbit hero-orbit-two" />
-            <div className="hero-art-label">
-              <span className="status-pip" />
-              CHARACTER PREVIEW
-            </div>
-
-            <AnimeAvatar profile={demoProfile} level={5} className="hero-avatar" />
-
-            <div className="hero-character-caption">
+        <div className="hero-scene">
+          <div className="scene-frame">
+            <div className="scene-ring scene-ring-one" />
+            <div className="scene-ring scene-ring-two" />
+            <div className="scene-stars">✦ <span>✧</span> · ✦</div>
+            <div className="scene-label"><span className="spark-dot" /> A COMPANION AWAITS</div>
+            <Avatar profile={demo} level={5} className="hero-avatar" />
+            <div className="scene-nameplate">
               <div>
-                <span className="eyebrow">YOUR GROWTH COMPANION</span>
-                <h2>Sora</h2>
-                <p>The Dreamsmith</p>
+                <span className="mini-label">DREAMSMITH OF THE UNWRITTEN</span>
+                <h2>Aeri</h2>
+                <p>Your story has not been written yet.</p>
               </div>
-              <div className="hero-level">LVL 05</div>
+              <span className="scene-level">LVL 05</span>
             </div>
-
-            <div className="hero-art-footnote">
-              The character is original artwork made from in-app SVG shapes.
-            </div>
+            <div className="scene-footnote">ORIGINAL CHARACTER ART · MADE OF SVG AND A LITTLE MAGIC</div>
           </div>
         </div>
       </section>
 
-      <section className="landing-feature-grid">
-        <article className="feature-card">
-          <div className="feature-icon">⌘</div>
-          <span className="eyebrow">01 / YOUR BLUEPRINT</span>
-          <h3>Start with your real life.</h3>
-          <p>
-            Reflect on your energy, routine, obstacles, and the goals you
-            genuinely want to work on.
-          </p>
-        </article>
+      <section className="world-intro">
+        <div>
+          <span className="eyebrow">NOT A CHECKLIST. A CHRONICLE.</span>
+          <h2>There are other worlds inside your everyday life.</h2>
+        </div>
+        <p>
+          Your goals become quests. Your effort becomes lore. Missed days are
+          not the end of the tale—your map is always waiting when you return.
+        </p>
+      </section>
 
+      <section className="feature-grid">
         <article className="feature-card">
-          <div className="feature-icon">✍</div>
-          <span className="eyebrow">02 / YOUR CONTRACT</span>
-          <h3>Choose a challenge you can own.</h3>
-          <p>
-            Choose 7, 21, or 30 days, select a stake, and sign with your
-            finger or mouse.
-          </p>
+          <div className="feature-mark">⌘</div>
+          <span className="eyebrow">THE FIRST PAGE</span>
+          <h3>Begin with your real life.</h3>
+          <p>Shape your world from your goals, energy, routine, obstacles, and the changes you actually want.</p>
         </article>
-
         <article className="feature-card">
-          <div className="feature-icon">✦</div>
-          <span className="eyebrow">03 / YOUR EVOLUTION</span>
-          <h3>Small quests. Visible growth.</h3>
-          <p>
-            Earn XP, grow your stats, use shields when a day is tough, and
-            unlock character upgrades.
-          </p>
+          <div className="feature-mark">✍</div>
+          <span className="eyebrow">THE LIVING OATH</span>
+          <h3>Make a promise in your own hand.</h3>
+          <p>Choose your chapter length, draw your signature, and decide how many ward stones travel with you.</p>
+        </article>
+        <article className="feature-card">
+          <div className="feature-mark">✦</div>
+          <span className="eyebrow">THE NEXT FORM</span>
+          <h3>Let the legend change.</h3>
+          <p>Complete quests to earn XP, grow your stats, and unlock new forms for your anime-inspired companion.</p>
         </article>
       </section>
 
-      <div className="landing-note">
-        <span>✧</span>
-        Your reset is personal. Your progress stays in this browser.
-      </div>
+      <div className="landing-footnote"><span>✧</span> A personal adventure, saved on this device. Not another streak to keep alive.</div>
     </main>
   );
 }
 
-function IntakeScreen({ initialProfile, onContinue, onBack }) {
+function OriginScreen({ initialProfile, onContinue, onBack }) {
   const [draft, setDraft] = useState(() => ({
-    ...EMPTY_PROFILE,
+    ...PROFILE_DEFAULTS,
     ...(initialProfile || {}),
-    areas:
-      initialProfile?.areas?.length > 0
-        ? initialProfile.areas
-        : EMPTY_PROFILE.areas
+    areas: initialProfile?.areas?.length ? initialProfile.areas : [...PROFILE_DEFAULTS.areas]
   }));
   const [error, setError] = useState('');
 
-  const persona = getPersona(draft);
-  const prompt =
-    FOCUS_PROMPTS[draft.primaryGoal] || FOCUS_PROMPTS.mindset;
+  const archetype = getArchetype(draft);
+  const placeholders = {
+    health: 'For example: sleep, gentle movement, strength, more energy',
+    education: 'For example: biology, a new language, a certification',
+    mindset: 'For example: confidence, focus, calm, self-trust',
+    career: 'For example: a project, job search, skill, next direction',
+    relationships: 'For example: family time, friendship, communication',
+    creativity: 'For example: drawing, music, writing, making things'
+  };
 
-  function updateField(key, value) {
+  function update(key, value) {
     setDraft((current) => ({ ...current, [key]: value }));
     setError('');
   }
 
   function toggleArea(key) {
-    setDraft((current) => {
-      const exists = current.areas.includes(key);
+    const selected = draft.areas.includes(key);
 
-      if (exists && current.areas.length === 1) {
-        setError('Choose at least one growth area.');
-        return current;
-      }
+    if (selected && draft.areas.length === 1) {
+      setError('Keep at least one realm in your story.');
+      return;
+    }
 
-      if (!exists && current.areas.length >= 3) {
-        setError('Choose up to three areas so your challenge stays focused.');
-        return current;
-      }
+    if (!selected && draft.areas.length >= 3) {
+      setError('Choose up to three realms to keep your first chapter focused.');
+      return;
+    }
 
-      const areas = exists
-        ? current.areas.filter((area) => area !== key)
-        : [...current.areas, key];
+    const areas = selected
+      ? draft.areas.filter((item) => item !== key)
+      : [...draft.areas, key];
 
-      const primaryGoal = areas.includes(current.primaryGoal)
-        ? current.primaryGoal
-        : areas[0];
+    const primaryGoal = areas.includes(draft.primaryGoal) ? draft.primaryGoal : areas[0];
 
-      return {
-        ...current,
-        areas,
-        primaryGoal,
-        focusDetail:
-          primaryGoal !== current.primaryGoal ? '' : current.focusDetail
-      };
-    });
-
+    setDraft((current) => ({
+      ...current,
+      areas,
+      primaryGoal,
+      focusDetail: primaryGoal !== current.primaryGoal ? '' : current.focusDetail
+    }));
     setError('');
   }
 
-  function handleSubmit(event) {
+  function submit(event) {
     event.preventDefault();
 
     if (!draft.name.trim()) {
-      setError('Add a name or nickname for your character profile.');
+      setError('Write a name or nickname for the story.');
       return;
     }
-
-    if (!draft.areas.length) {
-      setError('Choose at least one growth area.');
-      return;
-    }
-
     if (!draft.focusDetail.trim()) {
       setError('Add a little detail about your main focus.');
       return;
     }
-
     if (!draft.goalDetail.trim()) {
-      setError('Describe what progress would look like for you.');
+      setError('Describe what progress might look like for you.');
       return;
     }
 
     onContinue({
       ...draft,
       name: draft.name.trim(),
-      goalDetail: draft.goalDetail.trim(),
       focusDetail: draft.focusDetail.trim(),
+      goalDetail: draft.goalDetail.trim(),
       why: draft.why.trim()
     });
   }
 
   return (
     <main>
-      <div className="page-intro">
+      <div className="page-heading">
         <div>
-          <div className="eyebrow">01 / YOUR STARTING POINT</div>
-          <h1>Build your personal blueprint.</h1>
-          <p>
-            There is no ideal starting point. The better we understand your
-            real routine, the more useful your quests can be.
-          </p>
+          <span className="eyebrow">THE FIRST PAGE · YOUR ORIGIN</span>
+          <h1>Tell the world <em>where you are.</em></h1>
+          <p>This is not a test and there is no “right” starting point. Your story begins with what is true today.</p>
         </div>
-        <button className="text-button" type="button" onClick={onBack}>
-          ← Back
-        </button>
+        <button className="text-link" type="button" onClick={onBack}>← Back to the threshold</button>
       </div>
 
-      <div className="two-column-layout">
-        <form className="form-stack" onSubmit={handleSubmit} noValidate>
-          <section className="surface form-section">
-            <div className="section-heading">
-              <span className="section-number">01</span>
+      <div className="content-layout">
+        <form className="form-stack" onSubmit={submit} noValidate>
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">I</span>
               <div>
-                <h2>Your current chapter</h2>
-                <p>A few details about the life you are starting from.</p>
+                <h2>The life you’re arriving from</h2>
+                <p>A few details help us make the quests fit your actual days.</p>
               </div>
             </div>
 
-            <div className="form-grid">
-              <label className="field" htmlFor="profile-name">
-                <span>What should we call you?</span>
-                <input
-                  id="profile-name"
-                  value={draft.name}
-                  onChange={(event) => updateField('name', event.target.value)}
-                  placeholder="Name or nickname"
-                  maxLength={30}
-                />
+            <div className="field-grid">
+              <label className="field">
+                <span>What should the story call you?</span>
+                <input value={draft.name} onChange={(e) => update('name', e.target.value)} placeholder="Name or nickname" maxLength={30} />
               </label>
 
-              <label className="field" htmlFor="life-stage">
-                <span>What does this season look like?</span>
-                <select
-                  id="life-stage"
-                  value={draft.lifeStage}
-                  onChange={(event) => updateField('lifeStage', event.target.value)}
-                >
+              <label className="field">
+                <span>What season of life are you in?</span>
+                <select value={draft.lifeStage} onChange={(e) => update('lifeStage', e.target.value)}>
                   <option value="school">School or college</option>
                   <option value="working">Working</option>
                   <option value="transition">Between chapters</option>
@@ -1075,227 +629,54 @@ function IntakeScreen({ initialProfile, onContinue, onBack }) {
               </label>
 
               <div className="field">
-                <label htmlFor="sleep-hours">Usual sleep on a typical night</label>
-                <div className="range-row">
-                  <input
-                    id="sleep-hours"
-                    type="range"
-                    min="4"
-                    max="10"
-                    value={draft.sleepHours}
-                    onChange={(event) => updateField('sleepHours', event.target.value)}
-                  />
-                  <span className="range-value">{draft.sleepHours}h</span>
+                <label htmlFor="sleep-range">Usual sleep on a typical night</label>
+                <div className="range-line">
+                  <input id="sleep-range" type="range" min="4" max="10" value={draft.sleepHours} onChange={(e) => update('sleepHours', e.target.value)} />
+                  <b>{draft.sleepHours} hours</b>
                 </div>
-                <span className="field-hint">An estimate is completely fine.</span>
+                <small>An estimate is enough.</small>
               </div>
 
-              <label className="field" htmlFor="movement">
+              <label className="field">
                 <span>How often do you move your body?</span>
-                <select
-                  id="movement"
-                  value={draft.movement}
-                  onChange={(event) => updateField('movement', event.target.value)}
-                >
+                <select value={draft.movement} onChange={(e) => update('movement', e.target.value)}>
                   <option value="rarely">Not very often right now</option>
-                  <option value="1-2">About 1–2 days per week</option>
-                  <option value="3-4">About 3–4 days per week</option>
+                  <option value="1-2">About 1–2 days a week</option>
+                  <option value="3-4">About 3–4 days a week</option>
                   <option value="5+">Most days</option>
                 </select>
               </label>
 
               <div className="field">
-                <label htmlFor="energy">How has your energy been lately?</label>
-                <div className="range-row">
-                  <input
-                    id="energy"
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={draft.energy}
-                    onChange={(event) => updateField('energy', event.target.value)}
-                  />
-                  <span className="range-value">{draft.energy} / 5</span>
+                <label htmlFor="energy-range">How has your energy been?</label>
+                <div className="range-line">
+                  <input id="energy-range" type="range" min="1" max="5" value={draft.energy} onChange={(e) => update('energy', e.target.value)} />
+                  <b>{draft.energy} / 5</b>
                 </div>
-                <div className="range-ends">
-                  <span>Low</span>
-                  <span>High</span>
-                </div>
+                <small>Low <span className="range-spacer" /> High</small>
               </div>
 
               <div className="field">
-                <label htmlFor="stress">How much stress are you carrying?</label>
-                <div className="range-row">
-                  <input
-                    id="stress"
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={draft.stress}
-                    onChange={(event) => updateField('stress', event.target.value)}
-                  />
-                  <span className="range-value">{draft.stress} / 5</span>
+                <label htmlFor="stress-range">How much stress are you carrying?</label>
+                <div className="range-line">
+                  <input id="stress-range" type="range" min="1" max="5" value={draft.stress} onChange={(e) => update('stress', e.target.value)} />
+                  <b>{draft.stress} / 5</b>
                 </div>
-                <div className="range-ends">
-                  <span>A little</span>
-                  <span>A lot</span>
-                </div>
+                <small>A little <span className="range-spacer" /> A lot</small>
               </div>
 
-              <label className="field" htmlFor="screen-time">
-                <span>Typical non-work screen time</span>
-                <select
-                  id="screen-time"
-                  value={draft.screenTime}
-                  onChange={(event) => updateField('screenTime', event.target.value)}
-                >
-                  <option value="under2">Under 2 hours</option>
-                  <option value="2-4">2–4 hours</option>
-                  <option value="4-6">4–6 hours</option>
-                  <option value="6+">More than 6 hours</option>
-                </select>
-              </label>
-
-              <label className="field" htmlFor="routine">
-                <span>How would you describe your routine?</span>
-                <select
-                  id="routine"
-                  value={draft.routine}
-                  onChange={(event) => updateField('routine', event.target.value)}
-                >
+              <label className="field">
+                <span>How steady is your routine?</span>
+                <select value={draft.routine} onChange={(e) => update('routine', e.target.value)}>
                   <option value="inconsistent">It changes a lot</option>
                   <option value="sometimes">Some parts are consistent</option>
                   <option value="steady">I have a steady routine</option>
                 </select>
               </label>
-            </div>
-          </section>
 
-          <section className="surface form-section">
-            <div className="section-heading">
-              <span className="section-number">02</span>
-              <div>
-                <h2>Choose what you want to grow</h2>
-                <p>
-                  Choose up to three areas. Your first choice becomes the
-                  inspiration for your character.
-                </p>
-              </div>
-            </div>
-
-            <div className="area-select-grid">
-              {AREA_LIST.map((area) => {
-                const selected = draft.areas.includes(area.key);
-
-                return (
-                  <button
-                    className={`area-choice ${selected ? 'selected' : ''}`}
-                    type="button"
-                    key={area.key}
-                    aria-pressed={selected}
-                    onClick={() => toggleArea(area.key)}
-                  >
-                    <span className="area-choice-icon">{area.icon}</span>
-                    <strong>{area.label}</strong>
-                    <small>{area.description}</small>
-                    {selected && <span className="selected-label">SELECTED</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="form-grid goal-fields">
-              <label className="field" htmlFor="primary-goal">
-                <span>Your main focus</span>
-                <select
-                  id="primary-goal"
-                  value={draft.primaryGoal}
-                  onChange={(event) => {
-                    updateField('primaryGoal', event.target.value);
-                    updateField('focusDetail', '');
-                  }}
-                >
-                  {draft.areas.map((area) => (
-                    <option key={area} value={area}>
-                      {areaLabel(area)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="field">
-                <label htmlFor="focus-detail">{prompt.label}</label>
-                {prompt.options ? (
-                  <select
-                    id="focus-detail"
-                    value={draft.focusDetail}
-                    onChange={(event) =>
-                      updateField('focusDetail', event.target.value)
-                    }
-                  >
-                    <option value="">{prompt.placeholder}</option>
-                    {prompt.options.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    id="focus-detail"
-                    value={draft.focusDetail}
-                    onChange={(event) =>
-                      updateField('focusDetail', event.target.value)
-                    }
-                    placeholder={prompt.placeholder}
-                    maxLength={90}
-                  />
-                )}
-              </div>
-
-              <label className="field field-full" htmlFor="goal-detail">
-                <span>What would progress look like for you?</span>
-                <textarea
-                  id="goal-detail"
-                  value={draft.goalDetail}
-                  onChange={(event) => updateField('goalDetail', event.target.value)}
-                  placeholder="Be specific, but keep it realistic. For example: feel more energetic, finish a course, or draw three times a week."
-                  rows="3"
-                  maxLength={220}
-                />
-              </label>
-
-              <label className="field field-full" htmlFor="why">
-                <span>Why does this matter to you right now?</span>
-                <textarea
-                  id="why"
-                  value={draft.why}
-                  onChange={(event) => updateField('why', event.target.value)}
-                  placeholder="A sentence to remind your future self."
-                  rows="2"
-                  maxLength={180}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="surface form-section">
-            <div className="section-heading">
-              <span className="section-number">03</span>
-              <div>
-                <h2>Make the challenge fit your day</h2>
-                <p>Small enough to repeat is better than perfect on paper.</p>
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <label className="field" htmlFor="obstacle">
-                <span>What most often gets in your way?</span>
-                <select
-                  id="obstacle"
-                  value={draft.obstacle}
-                  onChange={(event) => updateField('obstacle', event.target.value)}
-                >
+              <label className="field">
+                <span>What tends to make things difficult?</span>
+                <select value={draft.obstacle} onChange={(e) => update('obstacle', e.target.value)}>
                   <option value="time">Not enough time</option>
                   <option value="motivation">Motivation comes and goes</option>
                   <option value="stress">Stress or overwhelm</option>
@@ -1304,16 +685,96 @@ function IntakeScreen({ initialProfile, onContinue, onBack }) {
                   <option value="energy">Low energy</option>
                 </select>
               </label>
+            </div>
+          </section>
 
-              <label className="field" htmlFor="daily-minutes">
-                <span>Realistic time for a daily quest</span>
-                <select
-                  id="daily-minutes"
-                  value={draft.dailyMinutes}
-                  onChange={(event) =>
-                    updateField('dailyMinutes', event.target.value)
-                  }
-                >
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">II</span>
+              <div>
+                <h2>Choose the realms you want to explore</h2>
+                <p>Select up to three. Your first realm shapes your companion.</p>
+              </div>
+            </div>
+
+            <div className="area-grid">
+              {AREAS.map((area) => {
+                const selected = draft.areas.includes(area.key);
+                return (
+                  <button
+                    className={`area-card ${selected ? 'selected' : ''}`}
+                    type="button"
+                    key={area.key}
+                    aria-pressed={selected}
+                    onClick={() => toggleArea(area.key)}
+                  >
+                    <span className="area-symbol">{area.symbol}</span>
+                    <strong>{area.name}</strong>
+                    <small>{area.description}</small>
+                    {selected && <span className="area-mark">IN YOUR STORY</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="field-grid">
+              <label className="field">
+                <span>Which realm is your main quest?</span>
+                <select value={draft.primaryGoal} onChange={(e) => {
+                  update('primaryGoal', e.target.value);
+                  update('focusDetail', '');
+                }}>
+                  {draft.areas.map((area) => <option key={area} value={area}>{getAreaName(area)}</option>)}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>What specifically do you want to focus on?</span>
+                <input
+                  value={draft.focusDetail}
+                  onChange={(e) => update('focusDetail', e.target.value)}
+                  placeholder={placeholders[draft.primaryGoal] || 'Describe your focus'}
+                  maxLength={90}
+                />
+              </label>
+
+              <label className="field field-wide">
+                <span>What would progress look like for you?</span>
+                <textarea
+                  value={draft.goalDetail}
+                  onChange={(e) => update('goalDetail', e.target.value)}
+                  placeholder="Keep it personal and realistic. For example: feel more rested, finish a course, or make time to draw."
+                  rows="3"
+                  maxLength={220}
+                />
+              </label>
+
+              <label className="field field-wide">
+                <span>Why does this matter to you right now?</span>
+                <textarea
+                  value={draft.why}
+                  onChange={(e) => update('why', e.target.value)}
+                  placeholder="Leave a note for the version of you who will read this later."
+                  rows="2"
+                  maxLength={180}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">III</span>
+              <div>
+                <h2>Set the pace of your adventure</h2>
+                <p>A small quest you can repeat is more powerful than a perfect plan.</p>
+              </div>
+            </div>
+
+            <div className="field-grid">
+              <label className="field">
+                <span>Realistic time for a main quest</span>
+                <select value={draft.dailyMinutes} onChange={(e) => update('dailyMinutes', e.target.value)}>
                   <option value="5">About 5 minutes</option>
                   <option value="15">About 15 minutes</option>
                   <option value="30">About 30 minutes</option>
@@ -1321,13 +782,9 @@ function IntakeScreen({ initialProfile, onContinue, onBack }) {
                 </select>
               </label>
 
-              <label className="field" htmlFor="best-time">
-                <span>When would you like to do your quests?</span>
-                <select
-                  id="best-time"
-                  value={draft.bestTime}
-                  onChange={(event) => updateField('bestTime', event.target.value)}
-                >
+              <label className="field">
+                <span>When might you explore?</span>
+                <select value={draft.bestTime} onChange={(e) => update('bestTime', e.target.value)}>
                   <option value="morning">Morning</option>
                   <option value="midday">Midday</option>
                   <option value="evening">Evening</option>
@@ -1337,58 +794,41 @@ function IntakeScreen({ initialProfile, onContinue, onBack }) {
             </div>
 
             <div className="privacy-note">
-              <span>◈</span>
-              <p>
-                Your answers are saved in this browser only. This app does not
-                send them to a server.
-              </p>
+              <span>✧</span>
+              <p>Your answers and progress are stored in this browser only. LifeLore does not send them to a server.</p>
             </div>
           </section>
 
-          {error && <div className="form-error">{error}</div>}
+          {error && <div className="error-message">{error}</div>}
 
-          <div className="form-submit-row">
-            <span className="field-hint">
-              Your plan can be gentle, focused, or somewhere in between.
-            </span>
-            <button className="button button-primary" type="submit">
-              Create my character
-              <span aria-hidden="true">↗</span>
-            </button>
+          <div className="form-submit">
+            <span>There is no perfect way to begin.</span>
+            <button className="button button-primary" type="submit">Meet my companion <span>↗</span></button>
           </div>
         </form>
 
-        <aside className="onboarding-aside">
-          <div className="surface profile-preview">
-            <span className="eyebrow">YOUR CHARACTER BLUEPRINT</span>
-            <AnimeAvatar profile={draft} level={1} />
-            <div className="preview-character-name">
-              <h2>{persona.character}</h2>
-              <span>{persona.role}</span>
+        <aside className="sticky-aside">
+          <section className="panel companion-preview">
+            <span className="eyebrow">A COMPANION IS TAKING SHAPE</span>
+            <Avatar profile={draft} level={1} />
+            <h2>{archetype.name}</h2>
+            <p className="companion-title">{archetype.title}</p>
+            <p className="companion-quote">{archetype.tagline}</p>
+            <div className="preview-rule" />
+            <div className="preview-detail">
+              <span className="mini-label">FIRST DESTINATION</span>
+              <strong>{archetype.region}</strong>
             </div>
-            <p className="persona-line">{persona.tagline}</p>
-            <div className="preview-divider" />
-            <div className="preview-focus">
-              <span className="mini-label">MAIN FOCUS</span>
-              <strong>{areaLabel(draft.primaryGoal)}</strong>
-              <small>{draft.focusDetail || 'Choose a focus to shape your quests.'}</small>
-            </div>
-            <div className="preview-focus">
-              <span className="mini-label">PLAYER</span>
+            <div className="preview-detail">
+              <span className="mini-label">THE PLAYER</span>
               <strong>{draft.name || 'Your name'}</strong>
-              <small>Your character grows from your actions—not from perfection.</small>
+              <small>Your character changes as you take action—not because you were perfect.</small>
             </div>
-          </div>
+          </section>
 
-          <div className="aside-tip">
-            <span className="aside-tip-icon">✧</span>
-            <div>
-              <strong>A useful reset is a kind one.</strong>
-              <p>
-                This is a reflection and habit-building app, not medical or
-                mental health advice.
-              </p>
-            </div>
+          <div className="aside-whisper">
+            <span>✦</span>
+            <p>This is a reflection and quest-building experience, not medical or mental health advice.</p>
           </div>
         </aside>
       </div>
@@ -1396,374 +836,199 @@ function IntakeScreen({ initialProfile, onContinue, onBack }) {
   );
 }
 
-function SignaturePad({ onChange, hasSignature }) {
+function SignaturePad({ onChange }) {
   const canvasRef = useRef(null);
-  const drawingRef = useRef(false);
-  const valueRef = useRef('');
+  const drawing = useRef(false);
+  const [hasInk, setHasInk] = useState(false);
 
-  useEffect(() => {
+  function point(event) {
     const canvas = canvasRef.current;
-
-    if (!canvas) {
-      return undefined;
-    }
-
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      const ratio = window.devicePixelRatio || 1;
-
-      canvas.width = Math.max(1, Math.round(rect.width * ratio));
-      canvas.height = Math.max(1, Math.round(rect.height * ratio));
-
-      const context = canvas.getContext('2d');
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.lineCap = 'round';
-      context.lineJoin = 'round';
-      context.lineWidth = 3;
-      context.strokeStyle = '#f0e9ff';
-      context.fillStyle = '#f0e9ff';
-
-      if (valueRef.current) {
-        const image = new Image();
-        const width = rect.width;
-        const height = rect.height;
-
-        image.onload = () => {
-          const nextContext = canvas.getContext('2d');
-          nextContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-          nextContext.drawImage(image, 0, 0, width, height);
-        };
-
-        image.src = valueRef.current;
-      }
-    }
-
-    resizeCanvas();
-
-    let observer;
-
-    if (typeof window.ResizeObserver !== 'undefined') {
-      observer = new window.ResizeObserver(resizeCanvas);
-      observer.observe(canvas);
-    } else {
-      window.addEventListener('resize', resizeCanvas);
-    }
-
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', resizeCanvas);
-    };
-  }, []);
-
-  function pointFromEvent(event) {
-    const rect = canvasRef.current.getBoundingClientRect();
-
+    const rect = canvas.getBoundingClientRect();
     return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height
     };
   }
 
-  function handlePointerDown(event) {
+  function startDrawing(event) {
+    event.preventDefault();
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
-    const point = pointFromEvent(event);
+    const position = point(event);
 
-    event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
-
-    drawingRef.current = true;
+    drawing.current = true;
     context.beginPath();
-    context.arc(point.x, point.y, 1.6, 0, Math.PI * 2);
+    context.arc(position.x, position.y, 2.4, 0, Math.PI * 2);
     context.fill();
-
     context.beginPath();
-    context.moveTo(point.x, point.y);
+    context.moveTo(position.x, position.y);
   }
 
-  function handlePointerMove(event) {
-    if (!drawingRef.current) {
-      return;
-    }
+  function draw(event) {
+    if (!drawing.current) return;
+    event.preventDefault();
 
     const context = canvasRef.current.getContext('2d');
-    const point = pointFromEvent(event);
-
-    context.lineTo(point.x, point.y);
+    const position = point(event);
+    context.lineTo(position.x, position.y);
     context.stroke();
   }
 
-  function handlePointerUp(event) {
-    if (!drawingRef.current) {
-      return;
-    }
-
-    drawingRef.current = false;
-
-    const canvas = canvasRef.current;
-    canvas.releasePointerCapture?.(event.pointerId);
-
-    const signature = canvas.toDataURL('image/png');
-    valueRef.current = signature;
-    onChange(signature);
+  function stopDrawing(event) {
+    if (!drawing.current) return;
+    drawing.current = false;
+    canvasRef.current.releasePointerCapture?.(event.pointerId);
+    setHasInk(true);
+    onChange(canvasRef.current.toDataURL('image/png'));
   }
 
-  function clearSignature() {
+  function clear() {
     const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const context = canvas.getContext('2d');
-
-    context.clearRect(0, 0, rect.width, rect.height);
-    valueRef.current = '';
-    drawingRef.current = false;
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    setHasInk(false);
     onChange('');
   }
 
   return (
     <div className="signature-area">
-      <div className="signature-canvas-wrap">
+      <div className="signature-wrap">
         <canvas
           ref={canvasRef}
-          className="signature-canvas"
+          width="1200"
+          height="300"
+          onPointerDown={startDrawing}
+          onPointerMove={draw}
+          onPointerUp={stopDrawing}
+          onPointerCancel={stopDrawing}
           aria-label="Draw your signature here"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
         />
-        {!hasSignature && (
-          <div className="signature-placeholder">
-            Sign here with your finger or mouse
-          </div>
-        )}
-        <div className="signature-rule" />
+        {!hasInk && <div className="signature-placeholder">Draw your name with a finger or mouse</div>}
+        <div className="signature-baseline" />
       </div>
-
       <div className="signature-tools">
-        <span>{hasSignature ? 'Signature captured' : 'Your signature is required'}</span>
-        <button className="text-button" type="button" onClick={clearSignature}>
-          Clear signature
-        </button>
+        <span>{hasInk ? 'Your mark has been recorded.' : 'Your hand-drawn mark is required.'}</span>
+        <button className="text-link" type="button" onClick={clear}>Clear</button>
       </div>
     </div>
   );
 }
 
-function ContractScreen({ profile, onStart, onEdit }) {
+function OathScreen({ profile, onBegin, onEdit }) {
   const [duration, setDuration] = useState(21);
   const [stake, setStake] = useState('steady');
   const [signature, setSignature] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
+  const archetype = getArchetype(profile);
 
-  const persona = getPersona(profile);
-
-  function beginChallenge() {
+  function begin() {
     if (!signature) {
-      setError('Draw your signature to accept the contract.');
+      setError('Draw your mark before sealing the oath.');
       return;
     }
-
     if (!accepted) {
-      setError('Please confirm that you understand the challenge rules.');
+      setError('Confirm that you understand the quest and ward rules.');
       return;
     }
-
-    onStart({
-      duration: Number(duration),
-      stake,
-      signature
-    });
+    onBegin({ duration: Number(duration), stake, signature });
   }
 
   return (
     <main>
-      <div className="page-intro">
+      <div className="page-heading">
         <div>
-          <div className="eyebrow">02 / THE COMMITMENT</div>
-          <h1>Choose your arc.</h1>
-          <p>
-            Pick a duration and a stake that feel challenging, but still
-            realistic for your life.
-          </p>
+          <span className="eyebrow">THE SECOND PAGE · YOUR OATH</span>
+          <h1>Choose the shape of <em>your chapter.</em></h1>
+          <p>Take on a challenge that feels meaningful, not impossible. This is a promise to return—not a demand for flawless days.</p>
         </div>
-        <button className="text-button" type="button" onClick={onEdit}>
-          ← Edit my blueprint
-        </button>
+        <button className="text-link" type="button" onClick={onEdit}>← Edit your origin</button>
       </div>
 
-      <div className="two-column-layout contract-layout">
+      <div className="content-layout oath-layout">
         <div className="form-stack">
-          <section className="surface form-section">
-            <div className="section-heading">
-              <span className="section-number">01</span>
-              <div>
-                <h2>Choose your duration</h2>
-                <p>You can choose 7, 21, or 30 days.</p>
-              </div>
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">I</span>
+              <div><h2>How long is this chapter?</h2><p>Choose the length of the adventure ahead.</p></div>
             </div>
-
             <div className="duration-grid">
               {[7, 21, 30].map((days) => (
-                <button
-                  type="button"
-                  key={days}
-                  className={`duration-card ${duration === days ? 'selected' : ''}`}
-                  aria-pressed={duration === days}
-                  onClick={() => setDuration(days)}
-                >
-                  <strong>{days}</strong>
-                  <span>days</span>
-                  <small>
-                    {days === 7
-                      ? 'A fresh start'
-                      : days === 21
-                        ? 'Build a rhythm'
-                        : 'A longer journey'}
-                  </small>
+                <button className={`duration-card ${duration === days ? 'selected' : ''}`} type="button" key={days} onClick={() => setDuration(days)} aria-pressed={duration === days}>
+                  <strong>{days}</strong><span>days</span>
+                  <small>{days === 7 ? 'The first spark' : days === 21 ? 'Find your rhythm' : 'A longer legend'}</small>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="surface form-section">
-            <div className="section-heading">
-              <span className="section-number">02</span>
-              <div>
-                <h2>Choose your stake</h2>
-                <p>
-                  Stakes are in-app challenge rules. There is no money involved.
-                </p>
-              </div>
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">II</span>
+              <div><h2>Choose your warding</h2><p>These are in-app rules, not money or real-world punishments.</p></div>
             </div>
-
             <div className="stake-grid">
               {Object.entries(STAKES).map(([key, option]) => (
-                <button
-                  type="button"
-                  key={key}
-                  className={`stake-card stake-${key} ${stake === key ? 'selected' : ''}`}
-                  aria-pressed={stake === key}
-                  onClick={() => setStake(key)}
-                >
+                <button className={`stake-card ${stake === key ? 'selected' : ''}`} type="button" key={key} onClick={() => setStake(key)} aria-pressed={stake === key}>
                   <span className="stake-symbol">{option.symbol}</span>
-                  <strong>{option.label}</strong>
-                  <span className="stake-description">{option.description}</span>
+                  <strong>{option.name}</strong>
+                  <span>{option.subtitle}</span>
                   <small>{option.detail}</small>
                 </button>
               ))}
             </div>
-
-            <div className="rules-callout">
+            <div className="ward-note">
               <span>!</span>
-              <p>
-                If you complete fewer than half of a day’s quests, you use one
-                shield. Once your shields are gone, that day’s rule deducts XP.
-              </p>
+              <p>Seal a day with fewer than half its quests completed and one ward stone is used. With no wards left, your chosen stake deducts XP.</p>
             </div>
           </section>
 
-          <section className="surface form-section signature-section">
-            <div className="section-heading">
-              <span className="section-number">03</span>
-              <div>
-                <h2>Sign your contract</h2>
-                <p>
-                  This is a promise to keep showing up—not a demand for perfect
-                  days.
-                </p>
-              </div>
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <span className="chapter-number">III</span>
+              <div><h2>Write your name into the story</h2><p>Draw your signature to seal the living oath.</p></div>
             </div>
 
-            <div className="pledge-text">
-              <span className="mini-label">MY RESET PLEDGE</span>
+            <div className="oath-paper">
+              <span className="mini-label">THE LIVING OATH</span>
               <p>
-                I, <strong>{profile.name}</strong>, will give myself a fair
-                chance for <strong>{duration} days</strong>. I will take one
-                small step at a time, and I will return when a day does not go
-                to plan.
+                I, <strong>{profile.name}</strong>, will give myself a fair chance for <strong>{duration} days</strong>.
+                I will take one small step at a time, and when a day does not go to plan, I will return when I can.
               </p>
             </div>
 
-            <SignaturePad
-              hasSignature={Boolean(signature)}
-              onChange={(value) => {
-                setSignature(value);
-                setError('');
-              }}
-            />
+            <SignaturePad onChange={(value) => { setSignature(value); setError(''); }} />
 
-            <label className="pledge-check">
-              <input
-                type="checkbox"
-                checked={accepted}
-                onChange={(event) => {
-                  setAccepted(event.target.checked);
-                  setError('');
-                }}
-              />
-              <span className="custom-checkbox" aria-hidden="true">
-                ✓
-              </span>
-              <span>
-                I understand the quest, shield, and XP rules, and I accept this
-                challenge.
-              </span>
+            <label className="oath-check">
+              <input type="checkbox" checked={accepted} onChange={(e) => { setAccepted(e.target.checked); setError(''); }} />
+              <span className="custom-check">✓</span>
+              <span>I understand the quest, ward, and XP rules. I accept this chapter.</span>
             </label>
           </section>
 
-          {error && <div className="form-error">{error}</div>}
+          {error && <div className="error-message">{error}</div>}
 
-          <div className="form-submit-row">
-            <span className="field-hint">
-              You can pause or leave the app; your progress is saved on this device.
-            </span>
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={beginChallenge}
-            >
-              Sign &amp; begin
-              <span aria-hidden="true">↗</span>
-            </button>
+          <div className="form-submit">
+            <span>Your story stays on this device.</span>
+            <button className="button button-primary" type="button" onClick={begin}>Seal the oath <span>✦</span></button>
           </div>
         </div>
 
-        <aside className="contract-aside">
-          <div className="surface contract-preview">
-            <span className="eyebrow">YOUR ARC PREVIEW</span>
-            <AnimeAvatar profile={profile} level={1} />
-            <div className="preview-character-name">
-              <h2>{persona.character}</h2>
-              <span>{persona.role}</span>
+        <aside className="sticky-aside">
+          <section className="panel oath-preview">
+            <span className="eyebrow">YOUR ADVENTURE PREVIEW</span>
+            <Avatar profile={profile} level={1} />
+            <h2>{archetype.name}</h2>
+            <p className="companion-title">{archetype.title}</p>
+            <div className="preview-rule" />
+            <div className="oath-summary">
+              <div><span className="mini-label">CHAPTER</span><strong>{duration} days</strong></div>
+              <div><span className="mini-label">WARDS</span><strong>{STAKES[stake].wards} stones</strong></div>
+              <div><span className="mini-label">FIRST REALM</span><strong>{archetype.region}</strong></div>
             </div>
-            <div className="contract-preview-details">
-              <div>
-                <span className="mini-label">DURATION</span>
-                <strong>{duration} days</strong>
-              </div>
-              <div>
-                <span className="mini-label">STAKE</span>
-                <strong>{STAKES[stake].label}</strong>
-              </div>
-              <div>
-                <span className="mini-label">STARTING SHIELDS</span>
-                <strong>{STAKES[stake].shields}</strong>
-              </div>
-            </div>
-            <p className="persona-line">{persona.tagline}</p>
-          </div>
-
-          <div className="aside-tip">
-            <span className="aside-tip-icon">✧</span>
-            <div>
-              <strong>Small is still progress.</strong>
-              <p>
-                Your daily quest set is based on your focus, chosen time, and
-                answers from your blueprint.
-              </p>
-            </div>
-          </div>
+            <p className="companion-quote">{archetype.tagline}</p>
+          </section>
+          <div className="aside-whisper"><span>✧</span><p>Complete all three daily quests to claim a +20 XP chapter bonus.</p></div>
         </aside>
       </div>
     </main>
@@ -1775,45 +1040,19 @@ function StatBars({ stats, baseline }) {
     <div className="stat-list">
       {STAT_ITEMS.map((item) => {
         const value = Math.round(stats?.[item.key] ?? 0);
-        const start =
-          baseline == null
-            ? null
-            : Math.round(baseline?.[item.key] ?? value);
-        const difference = start == null ? 0 : value - start;
+        const start = baseline ? Math.round(baseline[item.key] ?? value) : null;
+        const delta = start === null ? 0 : value - start;
 
         return (
           <div className="stat-row" key={item.key}>
             <div className="stat-heading">
-              <span>
-                <i>{item.icon}</i>
-                {item.label}
-              </span>
-              <strong>
-                {value}
-                <small>/100</small>
-              </strong>
+              <span><i>{item.symbol}</i>{item.name}</span>
+              <strong>{value}<small>/100</small></strong>
             </div>
-
-            <div
-              className="stat-track"
-              role="progressbar"
-              aria-label={`${item.label} stat`}
-              aria-valuenow={value}
-              aria-valuemin="0"
-              aria-valuemax="100"
-            >
+            <div className="stat-track" role="progressbar" aria-label={`${item.name} stat`} aria-valuenow={value} aria-valuemin="0" aria-valuemax="100">
               <span style={{ width: `${value}%` }} />
             </div>
-
-            {baseline != null && (
-              <div className="stat-delta">
-                {difference > 0
-                  ? `+${difference} from your start`
-                  : difference < 0
-                    ? `${difference} from your start`
-                    : 'Your starting point'}
-              </div>
-            )}
+            {baseline && <small className="stat-delta">{delta > 0 ? `+${delta} since your first page` : delta < 0 ? `${delta} from your first page` : 'Your starting point'}</small>}
           </div>
         );
       })}
@@ -1821,230 +1060,126 @@ function StatBars({ stats, baseline }) {
   );
 }
 
-function CharacterCard({ profile, challenge }) {
-  const persona = getPersona(profile);
+function CompanionPanel({ profile, challenge }) {
+  const archetype = getArchetype(profile);
   const level = getLevel(challenge.xp);
-  const progress = challenge.xp % XP_PER_LEVEL;
-  const percent = (progress / XP_PER_LEVEL) * 100;
-  const remaining = XP_PER_LEVEL - progress;
-
-  const evolutionStages = [
-    { level: 3, title: 'Gear' },
-    { level: 5, title: 'Cape + aura' },
-    { level: 7, title: 'Crown' }
-  ];
-
-  const growthLine =
-    level >= 7
-      ? 'Your character has reached their crowned form.'
-      : level >= 5
-        ? 'Your aura is awake. Keep going to earn the crown.'
-        : level >= 3
-          ? 'Your gear is taking shape. The next evolution is closer.'
-          : 'Every completed quest brings your character closer to their first upgrade.';
+  const levelXP = challenge.xp % XP_PER_LEVEL;
+  const remaining = XP_PER_LEVEL - levelXP;
+  const progress = (levelXP / XP_PER_LEVEL) * 100;
 
   return (
-    <section className="surface character-card">
-      <div className="character-visual">
-        <div className="character-visual-glow" />
-        <AnimeAvatar profile={profile} level={level} />
+    <section className="panel companion-panel">
+      <div className="companion-art">
+        <div className="companion-orbit" />
+        <Avatar profile={profile} level={level} />
       </div>
 
-      <div className="character-info">
-        <span className="eyebrow">YOUR GROWTH COMPANION</span>
-        <div className="character-name-row">
-          <div>
-            <h2>{persona.character}</h2>
-            <p>{persona.role}</p>
-          </div>
-          <div className="level-badge">
-            <span>LVL</span>
-            <strong>{level}</strong>
-          </div>
+      <div className="companion-info">
+        <span className="eyebrow">YOUR LOREBOUND COMPANION</span>
+        <div className="companion-name-row">
+          <div><h2>{archetype.name}</h2><p>{archetype.title}</p></div>
+          <div className="level-seal"><small>LVL</small><strong>{level}</strong></div>
         </div>
 
-        <p className="character-tagline">{persona.tagline}</p>
+        <p className="companion-quote">{archetype.tagline}</p>
 
-        <div className="xp-header">
-          <span>LEVEL {level} PROGRESS</span>
-          <span>
-            {progress} / {XP_PER_LEVEL} XP
-          </span>
+        <div className="xp-heading"><span>LORE XP · LEVEL {level}</span><span>{levelXP} / {XP_PER_LEVEL}</span></div>
+        <div className="xp-track"><span style={{ width: `${progress}%` }} /></div>
+        <div className="xp-caption"><span>{challenge.xp} total XP</span><span>{remaining} XP to next level</span></div>
+
+        <div className="evolution-heading">
+          {level >= 7 ? 'The crown is yours.' : level >= 5 ? 'Your aura is awake.' : level >= 3 ? 'Your first relic is yours.' : 'A new form is waiting in the lore.'}
         </div>
 
-        <div className="xp-track">
-          <span style={{ width: `${percent}%` }} />
-        </div>
-
-        <div className="xp-caption">
-          <span>{challenge.xp} total XP</span>
-          <span>{remaining} XP to next level</span>
-        </div>
-
-        <p className="growth-line">{growthLine}</p>
-
-        <div className="evolution-track">
-          {evolutionStages.map((stage) => {
-            const unlocked = level >= stage.level;
-
-            return (
-              <div
-                key={stage.level}
-                className={`evolution-step ${unlocked ? 'unlocked' : ''}`}
-              >
-                <span className="evolution-node">
-                  {unlocked ? '✓' : stage.level}
-                </span>
-                <span>
-                  <small>LEVEL {stage.level}</small>
-                  <strong>{stage.title}</strong>
-                </span>
-              </div>
-            );
-          })}
+        <div className="evolution-steps">
+          {[{ level: 3, name: 'Relic gear' }, { level: 5, name: 'Cape + aura' }, { level: 7, name: 'Star crown' }].map((step) => (
+            <div className={`evolution-step ${level >= step.level ? 'unlocked' : ''}`} key={step.level}>
+              <span>{level >= step.level ? '✓' : step.level}</span>
+              <small>LVL {step.level}<b>{step.name}</b></small>
+            </div>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function DayOutcome({ result, currentDay, duration, onNext, onResults }) {
-  let consequence = 'No shield was needed today.';
+function DayOutcome({ result, challenge, onNext, onResults }) {
+  let message = 'The page is sealed. Your journey continues.';
 
   if (result.belowHalf && result.shieldUsed) {
-    consequence = `A shield absorbed the low-clear day. ${result.shieldsRemaining} shield${result.shieldsRemaining === 1 ? '' : 's'} left.`;
-  } else if (result.belowHalf && !result.shieldUsed && result.xpPenalty > 0) {
-    consequence = `No shields remained, so ${result.xpPenalty} XP was deducted.`;
-  } else if (result.belowHalf && !result.shieldUsed) {
-    consequence = 'No shields remained. Your XP was already at zero, so no further XP could be deducted.';
+    message = `A ward stone softened today’s landing. ${result.shieldsRemaining} ward${result.shieldsRemaining === 1 ? '' : 's'} remain.`;
+  } else if (result.belowHalf && result.xpPenalty > 0) {
+    message = `No ward stones remained, so ${result.xpPenalty} XP was spent. The story is still yours to continue.`;
+  } else if (result.belowHalf) {
+    message = 'No ward stones remained. Your XP was already at zero, so there was nothing left to deduct.';
+  } else if (result.perfect) {
+    message = 'All three quests complete. The realm grants you a +20 XP chapter bonus.';
   }
 
   return (
-    <div className={`day-outcome ${result.belowHalf ? 'outcome-warning' : ''}`}>
-      <div className="outcome-title-row">
-        <span className="outcome-seal">{result.perfect ? '✦' : '✓'}</span>
-        <div>
-          <span className="eyebrow">DAY {currentDay} SEALED</span>
-          <h3>{result.perfect ? 'Perfect clear.' : 'You showed up.'}</h3>
-        </div>
+    <div className={`day-outcome ${result.belowHalf ? 'outcome-gentle' : ''}`}>
+      <div className="outcome-heading">
+        <span className="outcome-mark">{result.perfect ? '✦' : '✓'}</span>
+        <div><span className="eyebrow">PAGE SEALED</span><h3>{result.perfect ? 'A perfect clear.' : 'You were here.'}</h3></div>
+      </div>
+      <p>{message}</p>
+
+      <div className="reward-line">
+        <div><strong>+{result.questXP}</strong><small>quest XP</small></div>
+        {result.bonusXP > 0 && <div><strong>+{result.bonusXP}</strong><small>clear bonus</small></div>}
+        {result.shieldUsed && <div><strong>−1</strong><small>ward stone</small></div>}
+        {result.xpPenalty > 0 && <div className="reward-penalty"><strong>−{result.xpPenalty}</strong><small>XP spent</small></div>}
       </div>
 
-      <p className="outcome-copy">{consequence}</p>
-
-      <div className="outcome-rewards">
-        <div>
-          <strong>+{result.questXP}</strong>
-          <span>quest XP</span>
-        </div>
-        {result.bonusXP > 0 && (
-          <div className="bonus-reward">
-            <strong>+{result.bonusXP}</strong>
-            <span>clear bonus</span>
-          </div>
-        )}
-        {result.xpPenalty > 0 && (
-          <div className="penalty-reward">
-            <strong>−{result.xpPenalty}</strong>
-            <span>XP penalty</span>
-          </div>
-        )}
-        {result.shieldUsed && (
-          <div>
-            <strong>−1</strong>
-            <span>shield used</span>
-          </div>
-        )}
-      </div>
-
-      {currentDay < duration ? (
-        <button className="button button-primary outcome-button" onClick={onNext}>
-          Start day {currentDay + 1}
-          <span aria-hidden="true">→</span>
-        </button>
+      {challenge.currentDay < challenge.duration ? (
+        <button className="button button-primary" type="button" onClick={onNext}>Turn to day {challenge.currentDay + 1} <span>→</span></button>
       ) : (
-        <button className="button button-primary outcome-button" onClick={onResults}>
-          See my before &amp; after
-          <span aria-hidden="true">↗</span>
-        </button>
+        <button className="button button-primary" type="button" onClick={onResults}>Open the final chapter <span>↗</span></button>
       )}
     </div>
   );
 }
 
-function QuestBoard({
-  challenge,
-  quests,
-  record,
-  onToggleQuest,
-  onLockDay,
-  onNextDay,
-  onResults
-}) {
+function QuestBoard({ profile, challenge, record, onToggle, onSeal, onNext, onResults }) {
+  const quests = useMemo(() => makeQuests(profile, challenge.currentDay), [profile, challenge.currentDay]);
   const completed = record.completed || [];
-  const completedCount = quests.filter((quest) =>
-    completed.includes(quest.id)
-  ).length;
-  const allDone = completedCount === quests.length;
-  const progress = (completedCount / quests.length) * 100;
+  const count = quests.filter((quest) => completed.includes(quest.id)).length;
+  const isComplete = count === quests.length;
 
   return (
-    <section className="surface quest-board">
-      <div className="section-heading quest-board-heading">
-        <span className="section-number quest-board-icon">✦</span>
+    <section className="panel quest-panel">
+      <div className="quest-title-row">
+        <span className="quest-emblem">✧</span>
         <div>
-          <span className="eyebrow">DAILY MISSION BOARD</span>
-          <h2>Today’s quests</h2>
-          <p>
-            {record.locked
-              ? 'Your day is sealed. Take a moment to notice what you did.'
-              : 'Choose the next small action, then mark it complete.'}
-          </p>
+          <span className="eyebrow">TODAY’S TRIALS · DAY {challenge.currentDay}</span>
+          <h2>The realm has three small asks.</h2>
+          <p>Complete what you can. Your next step is more important than a perfect score.</p>
         </div>
-        <div className="quest-count">
-          <strong>{completedCount}</strong>
-          <span>/ {quests.length}</span>
-        </div>
+        <div className="quest-count"><strong>{count}</strong><span>/ {quests.length}</span></div>
       </div>
 
-      <div className="quest-progress-header">
-        <span>DAILY PROGRESS</span>
-        <span>{Math.round(progress)}%</span>
-      </div>
-
-      <div className="quest-progress-track">
-        <span style={{ width: `${progress}%` }} />
-      </div>
+      <div className="quest-progress-label"><span>THE DAY’S UNWRITTEN PAGE</span><span>{Math.round((count / quests.length) * 100)}%</span></div>
+      <div className="quest-progress"><span style={{ width: `${(count / quests.length) * 100}%` }} /></div>
 
       <div className="quest-list">
         {quests.map((quest) => {
-          const isDone = completed.includes(quest.id);
-
+          const done = completed.includes(quest.id);
           return (
             <button
               type="button"
+              className={`quest-row ${done ? 'done' : ''}`}
               key={quest.id}
-              className={`quest-row ${isDone ? 'quest-done' : ''}`}
               disabled={record.locked}
-              onClick={() => onToggleQuest(quest.id)}
+              onClick={() => onToggle(quest.id)}
             >
-              <span className="quest-check" aria-hidden="true">
-                {isDone ? '✓' : ''}
-              </span>
-
-              <span className="quest-text">
-                <span className="quest-category">
-                  {quest.category === 'reset'
-                    ? 'RESET RITUAL'
-                    : areaLabel(quest.category)}
-                </span>
+              <span className="quest-check">{done ? '✓' : ''}</span>
+              <span className="quest-copy">
+                <small>{quest.category === 'ritual' ? 'CAMPFIRE RITUAL' : getAreaName(quest.category)}</small>
                 <strong>{quest.title}</strong>
-                <small>{quest.detail}</small>
+                <span>{quest.detail}</span>
               </span>
-
-              <span className="quest-xp">
-                {isDone ? '+10' : '10'}
-                <small>XP</small>
-              </span>
+              <span className="quest-reward">{done ? '+10' : '10'}<small>XP</small></span>
             </button>
           );
         })}
@@ -2052,263 +1187,116 @@ function QuestBoard({
 
       {!record.locked ? (
         <>
-          <div className={`bonus-callout ${allDone ? 'bonus-ready' : ''}`}>
-            <span className="bonus-icon">{allDone ? '✦' : '＋'}</span>
-            <p>
-              {allDone
-                ? 'All quests complete. Seal the day to claim your +20 XP clear bonus.'
-                : 'Complete all 3 quests to earn a +20 XP clear bonus when you seal the day.'}
-            </p>
+          <div className={`bonus-note ${isComplete ? 'ready' : ''}`}>
+            <span>{isComplete ? '✦' : '＋'}</span>
+            <p>{isComplete ? 'All trials complete. Seal the page to claim your +20 XP chapter bonus.' : 'Complete all three trials to receive a +20 XP chapter bonus when you seal the page.'}</p>
           </div>
-
-          <div className="lock-day-row">
-            <div className="lock-day-hint">
-              <strong>Ready to close the day?</strong>
-              <span>
-                Fewer than half complete uses a shield. No shields left means an
-                XP deduction.
-              </span>
-            </div>
-            <button className="button button-primary" onClick={onLockDay}>
-              Seal today
-              <span aria-hidden="true">→</span>
-            </button>
+          <div className="seal-row">
+            <div><strong>Ready to close today’s page?</strong><small>Fewer than half complete uses a ward. No wards left means an XP deduction.</small></div>
+            <button className="button button-primary" type="button" onClick={onSeal}>Seal today <span>→</span></button>
           </div>
         </>
       ) : (
-        <DayOutcome
-          result={record.result}
-          currentDay={challenge.currentDay}
-          duration={challenge.duration}
-          onNext={onNextDay}
-          onResults={onResults}
-        />
+        <DayOutcome result={record.result} challenge={challenge} onNext={onNext} onResults={onResults} />
       )}
     </section>
   );
 }
 
-function DayMap({ challenge }) {
+function AdventureMap({ challenge }) {
   const days = Array.from({ length: challenge.duration }, (_, index) => index + 1);
-  const completedDays = Object.values(challenge.days || {}).filter(
-    (day) => day?.locked
-  ).length;
+  const sealedDays = Object.values(challenge.days || {}).filter((day) => day?.locked).length;
 
   return (
-    <section className="surface day-map">
-      <div className="section-heading">
-        <span className="section-number">↗</span>
-        <div>
-          <span className="eyebrow">YOUR CHALLENGE MAP</span>
-          <h2>One day at a time.</h2>
-          <p>
-            {completedDays} of {challenge.duration} days sealed
-          </p>
-        </div>
+    <section className="panel map-panel">
+      <div className="panel-heading">
+        <span className="chapter-number">✦</span>
+        <div><span className="eyebrow">THE MAP OF YOUR CHAPTER</span><h2>One page at a time.</h2><p>{sealedDays} of {challenge.duration} pages sealed</p></div>
       </div>
-
-      <div className="day-grid">
+      <div className="route-grid">
         {days.map((day) => {
-          const isDone = Boolean(challenge.days?.[day]?.locked);
-          const isCurrent = day === challenge.currentDay && !isDone;
-          const isFuture = day > challenge.currentDay;
-
+          const sealed = Boolean(challenge.days?.[day]?.locked);
+          const current = day === challenge.currentDay && !sealed;
+          const future = day > challenge.currentDay;
           return (
-            <div
-              className={`day-token ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''} ${isFuture ? 'future' : ''}`}
-              key={day}
-              aria-label={`Day ${day}${isDone ? ', complete' : isCurrent ? ', current' : ', upcoming'}`}
-              title={`Day ${day}${isDone ? ' · sealed' : isCurrent ? ' · current' : ' · upcoming'}`}
-            >
-              {isDone ? '✓' : day}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="day-map-legend">
-        <span><i className="legend-current" /> Current</span>
-        <span><i className="legend-done" /> Sealed</span>
-        <span><i className="legend-future" /> Upcoming</span>
-      </div>
-    </section>
-  );
-}
-
-function ChallengeStatus({ challenge }) {
-  const stake = STAKES[challenge.stake] || STAKES.steady;
-
-  return (
-    <section className="surface status-card">
-      <div className="side-card-heading">
-        <div>
-          <span className="eyebrow">YOUR CONTRACT</span>
-          <h3>{stake.label} stake</h3>
-        </div>
-        <span className="contract-seal">✦</span>
-      </div>
-
-      <div className="contract-status-line">
-        <span>CHALLENGE</span>
-        <strong>{challenge.duration} days</strong>
-      </div>
-
-      <div className="contract-status-line">
-        <span>SIGNED</span>
-        <strong>{formatDate(challenge.signedAt)}</strong>
-      </div>
-
-      <div className="shield-heading">
-        <span>SHIELDS LEFT</span>
-        <strong>{challenge.shields}</strong>
-      </div>
-
-      <div className="shield-list">
-        {Array.from({ length: stake.shields }, (_, index) => {
-          const available = index < challenge.shields;
-
-          return (
-            <span
-              className={`shield-token ${available ? 'available' : 'spent'}`}
-              key={index}
-              title={available ? 'Available shield' : 'Used shield'}
-            >
-              ◆
+            <span className={`route-token ${sealed ? 'sealed' : ''} ${current ? 'current' : ''} ${future ? 'future' : ''}`} key={day} title={`Day ${day}${sealed ? ' · sealed' : current ? ' · current' : ' · ahead'}`}>
+              {sealed ? '✓' : day}
             </span>
           );
         })}
       </div>
-
-      <p className="side-card-note">
-        Complete fewer than half of a day’s quests to use a shield. When none
-        remain, your stake applies an XP deduction.
-      </p>
-
-      {challenge.signature && (
-        <div className="saved-signature">
-          <span className="mini-label">YOUR SIGNATURE</span>
-          <img src={challenge.signature} alt="Your signed challenge contract" />
-        </div>
-      )}
+      <div className="map-legend"><span><i className="legend-today" /> Current page</span><span><i className="legend-sealed" /> Sealed page</span><span><i className="legend-ahead" /> Ahead</span></div>
     </section>
   );
 }
 
-function DashboardScreen({
-  profile,
-  challenge,
-  onToggleQuest,
-  onLockDay,
-  onNextDay,
-  onResults
-}) {
-  const dayRecord = challenge.days?.[challenge.currentDay] || {
-    completed: [],
-    locked: false,
-    result: null
-  };
+function WardPanel({ challenge }) {
+  const stake = STAKES[challenge.stake] || STAKES.steady;
 
-  const quests = useMemo(
-    () => makeDailyQuests(profile, challenge.currentDay),
-    [profile, challenge.currentDay]
+  return (
+    <section className="panel ward-panel">
+      <div className="side-heading">
+        <div><span className="eyebrow">YOUR LIVING OATH</span><h3>{stake.name} warding</h3></div>
+        <span className="side-rune">{stake.symbol}</span>
+      </div>
+      <div className="contract-line"><span>CHAPTER</span><strong>{challenge.duration} days</strong></div>
+      <div className="contract-line"><span>SIGNED</span><strong>{formatDate(challenge.signedAt)}</strong></div>
+      <div className="ward-count"><span>WARD STONES REMAINING</span><strong>{challenge.shields}</strong></div>
+      <div className="ward-stones">
+        {Array.from({ length: stake.wards }, (_, index) => (
+          <span className={index < challenge.shields ? 'ward-live' : 'ward-spent'} key={index}>◆</span>
+        ))}
+      </div>
+      <p className="side-note">A ward softens a difficult day. When none remain, your stake applies its XP rule.</p>
+      {challenge.signature && <div className="saved-mark"><span className="mini-label">YOUR MARK ON THE OATH</span><img src={challenge.signature} alt="Your signature on the living oath" /></div>}
+    </section>
   );
+}
 
-  const persona = getPersona(profile);
-  const completedDays = Object.values(challenge.days || {}).filter(
-    (day) => day?.locked
-  ).length;
+function DashboardScreen({ profile, challenge, onToggle, onSeal, onNext, onResults }) {
+  const record = challenge.days?.[challenge.currentDay] || { completed: [], locked: false, result: null };
+  const archetype = getArchetype(profile);
+  const sealedDays = Object.values(challenge.days || {}).filter((day) => day?.locked).length;
 
   return (
     <main>
-      <div className="page-intro dashboard-intro">
+      <div className="dashboard-intro">
         <div>
-          <div className="eyebrow">
-            YOUR RESET IS LIVE · DAY {challenge.currentDay}
-          </div>
-          <h1>
-            Show up for <em>today.</em>
-          </h1>
-          <p>
-            {profile.name}, your focus is {areaLabel(profile.primaryGoal).toLowerCase()}.
-            A small completed action still counts.
-          </p>
+          <span className="eyebrow"><span className="spark-dot" /> YOUR STORY IS IN MOTION · {archetype.region.toUpperCase()}</span>
+          <h1>The next page is <em>today.</em></h1>
+          <p>{profile.name}, you do not need to conquer the whole map. Just choose your next small move.</p>
         </div>
-
-        <div className="dashboard-quick-stats">
-          <div>
-            <strong>{completedDays}</strong>
-            <span>days sealed</span>
-          </div>
-          <div>
-            <strong>{challenge.xp}</strong>
-            <span>total XP</span>
-          </div>
-          <div>
-            <strong>{challenge.shields}</strong>
-            <span>shields left</span>
-          </div>
+        <div className="quick-stats">
+          <div><strong>{sealedDays}</strong><span>pages sealed</span></div>
+          <div><strong>{challenge.xp}</strong><span>lore XP</span></div>
+          <div><strong>{challenge.shields}</strong><span>wards</span></div>
         </div>
       </div>
 
       <div className="dashboard-grid">
-        <div className="dashboard-main">
-          <CharacterCard profile={profile} challenge={challenge} />
-
-          <QuestBoard
-            challenge={challenge}
-            quests={quests}
-            record={dayRecord}
-            onToggleQuest={onToggleQuest}
-            onLockDay={onLockDay}
-            onNextDay={onNextDay}
-            onResults={onResults}
-          />
-
-          <DayMap challenge={challenge} />
+        <div className="main-column">
+          <CompanionPanel profile={profile} challenge={challenge} />
+          <QuestBoard profile={profile} challenge={challenge} record={record} onToggle={onToggle} onSeal={onSeal} onNext={onNext} onResults={onResults} />
+          <AdventureMap challenge={challenge} />
         </div>
 
-        <aside className="dashboard-side">
-          <section className="surface stats-card">
-            <div className="side-card-heading">
-              <div>
-                <span className="eyebrow">PLAYER STATS</span>
-                <h3>Your bars are growing.</h3>
-              </div>
-              <span className="side-heading-icon">⌘</span>
-            </div>
-
-            <p className="side-card-note">
-              Finishing a quest builds the stat connected to that action.
-            </p>
-
-            <StatBars
-              stats={challenge.stats}
-              baseline={challenge.initialStats}
-            />
+        <aside className="side-column">
+          <section className="panel stats-panel">
+            <div className="side-heading"><div><span className="eyebrow">PLAYER ATTRIBUTES</span><h3>Your stats are growing.</h3></div><span className="side-rune">⌘</span></div>
+            <p className="side-note">Each completed trial adds strength to the attribute it calls on.</p>
+            <StatBars stats={challenge.stats} baseline={challenge.initialStats} />
           </section>
 
-          <ChallengeStatus challenge={challenge} />
+          <WardPanel challenge={challenge} />
 
-          <section className="surface why-card">
-            <span className="eyebrow">YOUR WHY</span>
-            <div className="why-mark">“</div>
-            <p>
-              {profile.why ||
-                'Your reason does not have to be impressive. It only needs to matter to you.'}
-            </p>
-            <div className="why-owner">
-              <span className="why-dot" />
-              {profile.name} · {persona.role}
-            </div>
+          <section className="panel why-panel">
+            <span className="eyebrow">A NOTE FROM YOUR FIRST PAGE</span>
+            <div className="quote-mark">“</div>
+            <p>{profile.why || 'You decided that taking the first step was worth it.'}</p>
+            <small><span /> {profile.name} · {archetype.title}</small>
           </section>
 
-          <div className="gentle-reminder">
-            <span>✧</span>
-            <p>
-              A missed quest is information, not a verdict. Make the next step
-              smaller and return when you can.
-            </p>
-          </div>
+          <div className="aside-whisper"><span>✧</span><p>A missed quest is a clue, not a verdict. Make the next step smaller and return when you can.</p></div>
         </aside>
       </div>
     </main>
@@ -2317,39 +1305,20 @@ function DashboardScreen({
 
 function CompareStats({ before, after }) {
   return (
-    <div className="compare-stats">
+    <div className="compare-list">
       {STAT_ITEMS.map((item) => {
         const start = Math.round(before?.[item.key] ?? 0);
         const end = Math.round(after?.[item.key] ?? start);
-        const difference = end - start;
+        const change = end - start;
 
         return (
-          <div className="compare-stat-row" key={item.key}>
-            <div className="compare-stat-heading">
-              <span>{item.icon} {item.label}</span>
-              <strong>
-                {start}
-                <span> → </span>
-                {end}
-              </strong>
-            </div>
-
+          <div className="compare-row" key={item.key}>
+            <div><span>{item.symbol} {item.name}</span><strong>{start} <i>→</i> {end}</strong></div>
             <div className="compare-bars">
-              <div className="compare-track before-track">
-                <span style={{ width: `${start}%` }} />
-              </div>
-              <div className="compare-track after-track">
-                <span style={{ width: `${end}%` }} />
-              </div>
+              <span className="before-bar"><i style={{ width: `${start}%` }} /></span>
+              <span className="after-bar"><i style={{ width: `${end}%` }} /></span>
             </div>
-
-            <small className={difference > 0 ? 'positive-delta' : ''}>
-              {difference > 0
-                ? `+${difference} growth`
-                : difference < 0
-                  ? `${difference} change`
-                  : 'Your starting point held steady'}
-            </small>
+            <small>{change > 0 ? `+${change} growth` : change < 0 ? `${change} change` : 'Your starting point held steady'}</small>
           </div>
         );
       })}
@@ -2357,215 +1326,125 @@ function CompareStats({ before, after }) {
   );
 }
 
-function ResultsScreen({ profile, challenge, onNewArc }) {
-  const persona = getPersona(profile);
+function ResultsScreen({ profile, challenge, onNewStory }) {
+  const archetype = getArchetype(profile);
   const level = getLevel(challenge.xp);
-  const lockedDays = Object.values(challenge.days || {}).filter(
-    (day) => day?.locked
-  );
-  const perfectDays = lockedDays.filter((day) => day.result?.perfect).length;
+  const sealed = Object.values(challenge.days || {}).filter((day) => day?.locked);
+  const perfect = sealed.filter((day) => day.result?.perfect).length;
   const completedQuests = challenge.totalQuestsCompleted || 0;
 
   return (
     <main className="results-page">
       <section className="results-heading">
-        <div className="eyebrow">YOUR ARC · COMPLETE</div>
-        <h1>
-          Look how far <em>you came.</em>
-        </h1>
-        <p>
-          Your transformation is not about becoming a different person. It is
-          proof of the steps you chose to take.
-        </p>
+        <span className="eyebrow">THE END OF ONE CHAPTER · THE BEGINNING OF ANOTHER</span>
+        <h1>Look at the story <em>you made.</em></h1>
+        <p>You did not become someone else. You left a trail of proof that you can show up for yourself.</p>
       </section>
 
-      <section className="surface transformation-card">
-        <div className="transformation-card-heading">
-          <div>
-            <span className="eyebrow">THE BEFORE &amp; AFTER</span>
-            <h2>Your character’s next form.</h2>
+      <section className="panel transformation-panel">
+        <div className="transformation-heading">
+          <div><span className="eyebrow">THE BEFORE &amp; AFTER</span><h2>Your companion’s next form.</h2></div>
+          <span className="complete-stamp">✦ CHAPTER COMPLETE</span>
+        </div>
+
+        <div className="before-after">
+          <div className="form-stage">
+            <span className="eyebrow">DAY 0 · THE FIRST PAGE</span>
+            <Avatar profile={profile} level={1} />
+            <h3>{archetype.name}</h3><p>{archetype.title}</p>
+            <small>LEVEL 1 · WANDERER</small>
           </div>
-          <div className="completed-badge">
-            <span>✓</span>
-            ARC SEALED
+          <div className="evolution-arrow"><span>→</span><small>{challenge.xp} XP</small></div>
+          <div className="form-stage after-stage">
+            <span className="eyebrow">DAY {challenge.duration} · THE NEW FORM</span>
+            <Avatar profile={profile} level={level} />
+            <h3>{archetype.name}</h3><p>{archetype.title}</p>
+            <small>LEVEL {level} · {level >= 7 ? 'CROWNED' : level >= 5 ? 'AWAKENED' : level >= 3 ? 'GEARED' : 'GROWING'}</small>
           </div>
         </div>
 
-        <div className="before-after-grid">
-          <div className="transform-side transform-before">
-            <span className="eyebrow">DAY 0 · BEFORE</span>
-            <AnimeAvatar profile={profile} level={1} />
-            <h3>{persona.character}</h3>
-            <p>{persona.role}</p>
-            <div className="transform-level">LEVEL 1 · ROOKIE</div>
-          </div>
-
-          <div className="transformation-arrow" aria-hidden="true">
-            <span>→</span>
-            <small>{challenge.xp} XP</small>
-          </div>
-
-          <div className="transform-side transform-after">
-            <span className="eyebrow">DAY {challenge.duration} · AFTER</span>
-            <AnimeAvatar profile={profile} level={level} />
-            <h3>{persona.character}</h3>
-            <p>{persona.role}</p>
-            <div className="transform-level">
-              LEVEL {level} · {level >= 7 ? 'ASCENDED' : level >= 5 ? 'AWAKENED' : level >= 3 ? 'GEARED' : 'GROWING'}
-            </div>
-          </div>
-        </div>
-
-        <div className="evolution-summary">
-          <span>✦</span>
-          {level >= 7
-            ? 'You unlocked the gear, cape, aura, and crown.'
-            : level >= 5
-              ? 'You unlocked your gear, cape, and aura. Keep the arc going for the crown.'
-              : level >= 3
-                ? 'You unlocked your first gear upgrade. Your next form is waiting.'
-                : 'Your first chapter is complete. Keep earning XP to unlock your character’s next form.'}
+        <div className="evolution-message">
+          <span>✧</span>
+          {level >= 7 ? 'Relic gear, a traveling cape, an awakened aura, and the star crown are yours.' : level >= 5 ? 'Your relic gear, cape, and awakened aura are yours. The crown awaits another chapter.' : level >= 3 ? 'Your companion has earned their first relic gear. The next form is waiting.' : 'Your first chapter is complete. Keep earning XP to unlock your companion’s next form.'}
         </div>
       </section>
 
-      <div className="results-lower-grid">
-        <section className="surface results-stats-card">
-          <div className="section-heading">
-            <span className="section-number">✧</span>
-            <div>
-              <span className="eyebrow">YOUR STATS</span>
-              <h2>Starting point to now.</h2>
-            </div>
-          </div>
-
-          <div className="compare-legend">
-            <span><i className="legend-before" /> Before</span>
-            <span><i className="legend-after" /> After</span>
-          </div>
-
-          <CompareStats
-            before={challenge.initialStats}
-            after={challenge.stats}
-          />
+      <div className="results-grid">
+        <section className="panel results-stats">
+          <div className="panel-heading"><span className="chapter-number">✧</span><div><span className="eyebrow">YOUR ATTRIBUTES</span><h2>From your first page to now.</h2></div></div>
+          <div className="compare-legend"><span><i className="legend-before" /> First page</span><span><i className="legend-after" /> Now</span></div>
+          <CompareStats before={challenge.initialStats} after={challenge.stats} />
         </section>
 
-        <section className="surface results-summary-card">
-          <span className="eyebrow">ARC RECAP</span>
+        <section className="panel recap-panel">
+          <span className="eyebrow">THE CHAPTER RECAP</span>
           <h2>{profile.name}, you kept moving.</h2>
-
-          <div className="recap-number-grid">
-            <div>
-              <strong>{lockedDays.length}/{challenge.duration}</strong>
-              <span>days sealed</span>
-            </div>
-            <div>
-              <strong>{perfectDays}</strong>
-              <span>perfect clears</span>
-            </div>
-            <div>
-              <strong>{completedQuests}</strong>
-              <span>quests completed</span>
-            </div>
-            <div>
-              <strong>{challenge.xp}</strong>
-              <span>final XP</span>
-            </div>
+          <div className="recap-grid">
+            <div><strong>{sealed.length}/{challenge.duration}</strong><span>pages sealed</span></div>
+            <div><strong>{perfect}</strong><span>perfect clears</span></div>
+            <div><strong>{completedQuests}</strong><span>trials completed</span></div>
+            <div><strong>{challenge.xp}</strong><span>final lore XP</span></div>
           </div>
-
-          <div className="recap-why">
-            <span className="mini-label">YOUR ORIGINAL WHY</span>
-            <p>
-              {profile.why || 'You decided it was worth taking the first step.'}
-            </p>
-          </div>
-
-          <p className="recap-closing">
-            Keep what worked. Make the next chapter yours.
-          </p>
+          <div className="recap-why"><span className="mini-label">YOUR ORIGINAL WHY</span><p>{profile.why || 'You decided this was worth the first step.'}</p></div>
+          <p className="recap-ending">Keep what worked. Change what didn’t. The next page is yours.</p>
         </section>
       </div>
 
-      <div className="results-actions">
-        <button className="button button-primary button-large" onClick={onNewArc}>
-          Start a new arc
-          <span aria-hidden="true">↗</span>
-        </button>
-        <span>Your progress and answers stay on this device.</span>
+      <div className="results-action">
+        <button className="button button-primary button-large" onClick={onNewStory}>Begin a new story <span>↗</span></button>
+        <small>Your progress is saved on this device until you start over.</small>
       </div>
     </main>
   );
 }
 
-function App() {
-  const saved = useMemo(() => readSavedData(), []);
+export default function App() {
+  const saved = useMemo(() => readSave(), []);
   const [profile, setProfile] = useState(saved.profile || null);
   const [challenge, setChallenge] = useState(saved.challenge || null);
 
-  const initialScreen = saved.challenge
-    ? saved.challenge.currentDay >= saved.challenge.duration &&
-      saved.challenge.days?.[saved.challenge.currentDay]?.locked
-      ? 'results'
-      : 'dashboard'
-    : saved.profile
-      ? 'contract'
-      : 'landing';
-
-  const [screen, setScreen] = useState(initialScreen);
+  const [screen, setScreen] = useState(() => {
+    if (saved.challenge) {
+      const day = saved.challenge.currentDay;
+      const finalPageSealed = day >= saved.challenge.duration && saved.challenge.days?.[day]?.locked;
+      return finalPageSealed ? 'codex' : 'realm';
+    }
+    return saved.profile ? 'oath' : 'landing';
+  });
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (!profile && !challenge) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
     try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ profile, challenge })
-      );
+      if (!profile && !challenge) {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, challenge }));
+      }
     } catch {
-      // The app remains usable if browser storage is unavailable or full.
+      // The app remains usable if browser storage is unavailable.
     }
   }, [profile, challenge]);
 
-  function handleRestart() {
-    const hasSavedProgress = Boolean(profile || challenge);
-
-    if (
-      hasSavedProgress &&
-      !window.confirm(
-        'Start a completely new arc? Your current profile and challenge will be erased from this browser.'
-      )
-    ) {
-      return;
-    }
-
+  function newStory() {
+    if ((profile || challenge) && !window.confirm('Start a new story? Your current profile and chapter will be removed from this browser.')) return;
     setProfile(null);
     setChallenge(null);
     setScreen('landing');
   }
 
-  function handleProfileContinue(nextProfile) {
+  function saveOrigin(nextProfile) {
     setProfile(nextProfile);
     setChallenge(null);
-    setScreen('contract');
+    setScreen('oath');
   }
 
-  function handleStartChallenge({ duration, stake, signature }) {
-    if (!profile) {
-      return;
-    }
-
-    const initialStats = getInitialStats(profile);
+  function startChapter({ duration, stake, signature }) {
+    if (!profile) return;
+    const initialStats = getBaseStats(profile);
 
     setChallenge({
       duration,
       stake,
-      shields: STAKES[stake].shields,
+      shields: STAKES[stake].wards,
       xp: 0,
       currentDay: 1,
       days: {},
@@ -2576,103 +1455,60 @@ function App() {
       startedAt: new Date().toISOString(),
       signedAt: new Date().toISOString()
     });
-
-    setScreen('dashboard');
+    setScreen('realm');
   }
 
-  function handleToggleQuest(questId) {
-    if (!profile) {
-      return;
-    }
+  function toggleQuest(questId) {
+    if (!profile) return;
 
     setChallenge((previous) => {
-      if (!previous) {
-        return previous;
-      }
+      if (!previous) return previous;
 
       const day = previous.currentDay;
-      const record = previous.days?.[day] || {
-        completed: [],
-        locked: false,
-        result: null
-      };
+      const record = previous.days?.[day] || { completed: [], locked: false, result: null };
+      if (record.locked) return previous;
 
-      if (record.locked) {
-        return previous;
-      }
+      const quest = makeQuests(profile, day).find((item) => item.id === questId);
+      if (!quest) return previous;
 
-      const quest = makeDailyQuests(profile, day).find(
-        (item) => item.id === questId
-      );
-
-      if (!quest) {
-        return previous;
-      }
-
-      const alreadyCompleted = record.completed.includes(questId);
-      const completed = alreadyCompleted
+      const alreadyDone = record.completed.includes(questId);
+      const completed = alreadyDone
         ? record.completed.filter((id) => id !== questId)
         : [...record.completed, questId];
 
-      const direction = alreadyCompleted ? -1 : 1;
+      const direction = alreadyDone ? -1 : 1;
       const stats = {
         ...previous.stats,
-        [quest.stat]: clamp(
-          (previous.stats?.[quest.stat] ?? 0) +
-            direction * STAT_GAIN_PER_QUEST,
-          0,
-          100
-        )
+        [quest.stat]: clamp((previous.stats?.[quest.stat] || 0) + direction * STAT_GAIN_PER_QUEST, 0, 100)
       };
 
       return {
         ...previous,
         xp: Math.max(0, previous.xp + direction * quest.xp),
         stats,
-        totalQuestsCompleted: Math.max(
-          0,
-          (previous.totalQuestsCompleted || 0) + direction
-        ),
+        totalQuestsCompleted: Math.max(0, (previous.totalQuestsCompleted || 0) + direction),
         days: {
           ...previous.days,
-          [day]: {
-            ...record,
-            completed,
-            locked: false,
-            result: null
-          }
+          [day]: { ...record, completed, locked: false, result: null }
         }
       };
     });
   }
 
-  function handleLockDay() {
-    if (!profile) {
-      return;
-    }
+  function sealDay() {
+    if (!profile) return;
 
     setChallenge((previous) => {
-      if (!previous) {
-        return previous;
-      }
+      if (!previous) return previous;
 
       const day = previous.currentDay;
-      const quests = makeDailyQuests(profile, day);
-      const record = previous.days?.[day] || {
-        completed: [],
-        locked: false,
-        result: null
-      };
+      const quests = makeQuests(profile, day);
+      const record = previous.days?.[day] || { completed: [], locked: false, result: null };
+      if (record.locked) return previous;
 
-      if (record.locked) {
-        return previous;
-      }
-
-      const completedCount = quests.filter((quest) =>
-        record.completed.includes(quest.id)
-      ).length;
+      const completedCount = quests.filter((quest) => record.completed.includes(quest.id)).length;
       const perfect = completedCount === quests.length;
-      const belowHalf = completedCount * 2 < quests.length;
+      const belowHalf = completedCount < quests.length / 2;
       const questXP = quests
         .filter((quest) => record.completed.includes(quest.id))
         .reduce((total, quest) => total + quest.xp, 0);
@@ -2681,38 +1517,26 @@ function App() {
       let shields = previous.shields;
       let shieldUsed = false;
       let xpPenalty = 0;
-      let penaltyTarget = 0;
 
       if (belowHalf) {
         if (shields > 0) {
           shields -= 1;
           shieldUsed = true;
         } else {
-          penaltyTarget = STAKES[previous.stake].penalty;
-          xpPenalty = Math.min(
-            penaltyTarget,
-            previous.xp + bonusXP
-          );
+          xpPenalty = Math.min(STAKES[previous.stake].penalty, previous.xp + bonusXP);
         }
       }
 
-      const xpAfter = Math.max(
-        0,
-        previous.xp + bonusXP - xpPenalty
-      );
-
+      const xpAfter = Math.max(0, previous.xp + bonusXP - xpPenalty);
       const result = {
         completedCount,
-        total: quests.length,
         perfect,
         belowHalf,
         questXP,
         bonusXP,
         shieldUsed,
         shieldsRemaining: shields,
-        penaltyTarget,
-        xpPenalty,
-        xpAfter
+        xpPenalty
       };
 
       return {
@@ -2721,104 +1545,68 @@ function App() {
         shields,
         days: {
           ...previous.days,
-          [day]: {
-            ...record,
-            locked: true,
-            result,
-            lockedAt: new Date().toISOString()
-          }
+          [day]: { ...record, locked: true, result, sealedAt: new Date().toISOString() }
         }
       };
     });
   }
 
-  function handleNextDay() {
+  function nextDay() {
     setChallenge((previous) => {
-      if (!previous) {
-        return previous;
-      }
-
-      const currentRecord = previous.days?.[previous.currentDay];
-
-      if (
-        !currentRecord?.locked ||
-        previous.currentDay >= previous.duration
-      ) {
-        return previous;
-      }
-
-      return {
-        ...previous,
-        currentDay: previous.currentDay + 1
-      };
+      if (!previous || previous.currentDay >= previous.duration) return previous;
+      if (!previous.days?.[previous.currentDay]?.locked) return previous;
+      return { ...previous, currentDay: previous.currentDay + 1 };
     });
-
-    setScreen('dashboard');
+    setScreen('realm');
   }
 
-  function handleViewResults() {
-    setScreen('results');
+  function showResults() {
+    setScreen('codex');
   }
 
   return (
     <div className="app-shell">
-      <div className="ambient-glow ambient-glow-one" />
-      <div className="ambient-glow ambient-glow-two" />
+      <div className="world-glow glow-one" />
+      <div className="world-glow glow-two" />
 
-      <div className="shell-inner">
-        <SiteHeader
-          challenge={challenge}
-          showRestart={Boolean(profile || challenge)}
-          onRestart={handleRestart}
-        />
+      <div className="app-frame">
+        <Header challenge={challenge} hasSave={Boolean(profile || challenge)} onNewStory={newStory} />
 
-        {screen === 'landing' && (
-          <LandingScreen onStart={() => setScreen('intake')} />
-        )}
+        {screen === 'landing' && <LandingScreen onStart={() => setScreen('origin')} />}
 
-        {screen === 'intake' && (
-          <IntakeScreen
+        {screen === 'origin' && (
+          <OriginScreen
             initialProfile={profile}
-            onContinue={handleProfileContinue}
-            onBack={() => setScreen(profile ? 'contract' : 'landing')}
+            onContinue={saveOrigin}
+            onBack={() => setScreen(profile ? 'oath' : 'landing')}
           />
         )}
 
-        {screen === 'contract' && profile && (
-          <ContractScreen
-            profile={profile}
-            onStart={handleStartChallenge}
-            onEdit={() => setScreen('intake')}
-          />
+        {screen === 'oath' && profile && (
+          <OathScreen profile={profile} onBegin={startChapter} onEdit={() => setScreen('origin')} />
         )}
 
-        {screen === 'dashboard' && profile && challenge && (
+        {screen === 'realm' && profile && challenge && (
           <DashboardScreen
             profile={profile}
             challenge={challenge}
-            onToggleQuest={handleToggleQuest}
-            onLockDay={handleLockDay}
-            onNextDay={handleNextDay}
-            onResults={handleViewResults}
+            onToggle={toggleQuest}
+            onSeal={sealDay}
+            onNext={nextDay}
+            onResults={showResults}
           />
         )}
 
-        {screen === 'results' && profile && challenge && (
-          <ResultsScreen
-            profile={profile}
-            challenge={challenge}
-            onNewArc={handleRestart}
-          />
+        {screen === 'codex' && profile && challenge && (
+          <ResultsScreen profile={profile} challenge={challenge} onNewStory={newStory} />
         )}
 
         <footer className="site-footer">
-          <span>RESET ARC</span>
-          <span>Small steps count. Your data stays on this device.</span>
+          <span>LIFELORE</span>
+          <span>Your story belongs to you. Progress stays on this device.</span>
           <span>Not medical advice.</span>
         </footer>
       </div>
     </div>
   );
 }
-
-export default App;
