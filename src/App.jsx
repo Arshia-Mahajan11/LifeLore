@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { CHARACTERS, determineCharacter, generateDynamicQuests, XP_PER_LEVEL } from './data/lore.js';
+import { ARCHETYPES, matchArchetype, generateDynamicQuests, XP_PER_LEVEL } from './data/lore.js';
 import '../styles/styles.css';
 
-const STORAGE_KEY = 'lifelore_adventure_v3';
+const STORAGE_KEY = 'winter_arc_lifereset_save_v1';
 
-function SignaturePad({ onChange }) {
+function SignaturePad({ onSign }) {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
   const [hasInk, setHasInk] = useState(false);
@@ -15,24 +15,23 @@ function SignaturePad({ onChange }) {
     const ctx = canvas.getContext('2d');
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     ctx.strokeStyle = '#00e5ff';
   }, []);
 
-  function getPoint(e) {
+  function getPos(e) {
     const rect = canvasRef.current.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
     return {
-      x: ((clientX - rect.left) / rect.width) * canvasRef.current.width,
-      y: ((clientY - rect.top) / rect.height) * canvasRef.current.height
+      x: ((cx - rect.left) / rect.width) * canvasRef.current.width,
+      y: ((cy - rect.top) / rect.height) * canvasRef.current.height
     };
   }
 
   function start(e) {
     drawingRef.current = true;
     const ctx = canvasRef.current.getContext('2d');
-    const pt = getPoint(e);
+    const pt = getPos(e);
     ctx.beginPath();
     ctx.moveTo(pt.x, pt.y);
   }
@@ -40,40 +39,39 @@ function SignaturePad({ onChange }) {
   function draw(e) {
     if (!drawingRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
-    const pt = getPoint(e);
+    const pt = getPos(e);
     ctx.lineTo(pt.x, pt.y);
     ctx.stroke();
     setHasInk(true);
   }
 
-  function stop() {
-    if (!drawingRef.current) return;
+  function finish() {
     drawingRef.current = false;
-    onChange(canvasRef.current.toDataURL());
+    onSign(canvasRef.current.toDataURL());
   }
 
   function clear() {
     const canvas = canvasRef.current;
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
-    onChange('');
+    onSign('');
   }
 
   return (
-    <div className="sig-wrapper">
+    <div className="sig-container">
       <canvas
         ref={canvasRef}
-        width={400}
-        height={130}
+        width={380}
+        height={110}
         onMouseDown={start}
         onMouseMove={draw}
-        onMouseUp={stop}
+        onMouseUp={finish}
         onTouchStart={start}
         onTouchMove={draw}
-        onTouchEnd={stop}
+        onTouchEnd={finish}
       />
-      {!hasInk && <span className="sig-hint">Sign your name here with finger/mouse</span>}
-      <button type="button" className="sig-clear" onClick={clear}>Clear</button>
+      {!hasInk && <span className="sig-placeholder">Draw signature with finger or mouse</span>}
+      <button type="button" className="sig-clear-btn" onClick={clear}>Clear</button>
     </div>
   );
 }
@@ -87,20 +85,22 @@ export default function App() {
     return null;
   });
 
-  const [step, setStep] = useState('landing');
-  const [survey, setSurvey] = useState({
+  const [view, setView] = useState(() => (gameState ? 'dashboard' : 'landing'));
+  const [qIndex, setQIndex] = useState(0);
+  const [dashboardTab, setDashboardTab] = useState('quests');
+  const [questSubTab, setQuestSubTab] = useState('todos');
+  const [toast, setToast] = useState(null);
+
+  const [answers, setAnswers] = useState({
     name: '',
-    wakeTime: '6:30 AM',
-    sleepTime: '11:00 PM',
+    wakeTime: '06:00',
+    sleepTime: '23:00',
     goal: 'discipline',
     hobby: '',
-    duration: 21,
+    duration: 66,
     signature: '',
-    agreed: false
+    accepted: false
   });
-
-  const [activeTab, setActiveTab] = useState('todos');
-  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     if (gameState) {
@@ -108,38 +108,177 @@ export default function App() {
     }
   }, [gameState]);
 
-  function startOnboarding() {
-    setStep('questions');
+  const questions = [
+    {
+      id: 'name',
+      title: 'WHAT IS YOUR PLAYER NAME?',
+      subtitle: 'Enter your alias for the Winter Arc ranking system.',
+      render: () => (
+        <input
+          type="text"
+          className="q-input"
+          placeholder="e.g. Manas Yadav, Jin, Ethan"
+          value={answers.name}
+          onChange={(e) => setAnswers({ ...answers, name: e.target.value })}
+        />
+      )
+    },
+    {
+      id: 'schedule',
+      title: 'WHAT IS YOUR TARGET SCHEDULE?',
+      subtitle: 'Your waking hours shape your daily quest triggers.',
+      render: () => (
+        <div className="time-select-grid">
+          <div>
+            <label>Wake Up Time</label>
+            <input
+              type="time"
+              className="q-input"
+              value={answers.wakeTime}
+              onChange={(e) => setAnswers({ ...answers, wakeTime: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>In Bed Time</label>
+            <input
+              type="time"
+              className="q-input"
+              value={answers.sleepTime}
+              onChange={(e) => setAnswers({ ...answers, sleepTime: e.target.value })}
+            />
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'goal',
+      title: 'CHOOSE YOUR WINTER ARC FOCUS',
+      subtitle: 'This unlocks your personal anime character archetype.',
+      render: () => (
+        <div className="focus-grid">
+          {[
+            { key: 'discipline', label: 'Solo Discipline', anime: 'Sung Jin-woo (Solo Leveling)', icon: '⚡' },
+            { key: 'strength', label: 'Pure Grit & Gym', anime: 'Ippo (Hajime no Ippo)', icon: '🥊' },
+            { key: 'focus', label: 'Deep Work & Strategy', anime: 'Isagi Yoichi (Blue Lock)', icon: '🧠' },
+            { key: 'mindset', label: 'Relentless Confidence', anime: 'Hinata (Haikyuu!!)', icon: '🔥' }
+          ].map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`focus-card ${answers.goal === f.key ? 'selected' : ''}`}
+              onClick={() => setAnswers({ ...answers, goal: f.key })}
+            >
+              <span className="focus-icon">{f.icon}</span>
+              <strong>{f.label}</strong>
+              <small>{f.anime}</small>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: 'hobby',
+      title: 'WHAT HOBBY WILL YOU PROTECT?',
+      subtitle: 'A high-tier habit keeps your mind sharp during tough arcs.',
+      render: () => (
+        <input
+          type="text"
+          className="q-input"
+          placeholder="e.g. Chess, Coding, Guitar, Sketching"
+          value={answers.hobby}
+          onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
+        />
+      )
+    },
+    {
+      id: 'oath',
+      title: 'SELECT ARC LENGTH & SEAL OATH',
+      subtitle: 'Sign your name. Once sealed, daily trials begin.',
+      render: () => {
+        const assigned = matchArchetype(answers.goal);
+        return (
+          <div className="oath-step">
+            <div className="arc-chips">
+              {[14, 21, 66].map((days) => (
+                <button
+                  type="button"
+                  key={days}
+                  className={`arc-chip ${answers.duration === days ? 'active' : ''}`}
+                  onClick={() => setAnswers({ ...answers, duration: days })}
+                >
+                  {days} DAYS
+                </button>
+              ))}
+            </div>
+
+            <div className="character-awaken-card">
+              <img src={assigned.stages.base} alt={assigned.name} />
+              <div>
+                <span className="archetype-badge">{assigned.title}</span>
+                <h4>{assigned.name}</h4>
+                <p>"{assigned.line}"</p>
+              </div>
+            </div>
+
+            <div className="oath-box">
+              <p>
+                I, <strong>{answers.name || 'Hunter'}</strong>, commit to this <strong>{answers.duration}-Day Winter Arc</strong>.
+                I will clear my daily trials and build unstoppable consistency.
+              </p>
+              <SignaturePad onSign={(dataUrl) => setAnswers({ ...answers, signature: dataUrl })} />
+              <label className="agree-check">
+                <input
+                  type="checkbox"
+                  checked={answers.accepted}
+                  onChange={(e) => setAnswers({ ...answers, accepted: e.target.checked })}
+                />
+                <span>I confirm and bind my signature to this arc.</span>
+              </label>
+            </div>
+          </div>
+        );
+      }
+    }
+  ];
+
+  function nextQuestion() {
+    if (questions[qIndex].id === 'name' && !answers.name.trim()) {
+      return alert('Please enter your player name.');
+    }
+    if (qIndex < questions.length - 1) {
+      setQIndex(qIndex + 1);
+    } else {
+      if (!answers.signature) return alert('Please draw your signature to seal the oath.');
+      if (!answers.accepted) return alert('Please check the confirmation box.');
+
+      const hero = matchArchetype(answers.goal);
+      setGameState({
+        player: answers.name.trim(),
+        day: 1,
+        totalDays: answers.duration,
+        streak: 1,
+        trophies: 2,
+        xp: 301,
+        level: 2,
+        heroKey: hero.id,
+        goal: answers.goal,
+        hobby: answers.hobby,
+        completedQuestIds: [],
+        ratings: {
+          WISDOM: 52,
+          CONFIDENCE: 113,
+          STRENGTH: 124,
+          DISCIPLINE: 175,
+          FOCUS: 186
+        }
+      });
+      setView('dashboard');
+    }
   }
 
-  function handleSurveyComplete() {
-    if (!survey.name.trim()) return alert('Please enter your name.');
-    if (!survey.signature) return alert('Please sign your oath before sealing.');
-    if (!survey.agreed) return alert('Please check the confirmation box.');
-
-    const assignedHero = determineCharacter(survey.goal);
-
-    setGameState({
-      player: survey.name,
-      day: 1,
-      totalDays: survey.duration,
-      streak: 1,
-      trophies: 10,
-      xp: 0,
-      level: 1,
-      heroKey: assignedHero.id,
-      goal: survey.goal,
-      hobby: survey.hobby,
-      completedQuestIds: [],
-      stats: { CON: 15, FOC: 15, DIS: 15, STR: 15, WIS: 15 }
-    });
-    setStep('game');
-  }
-
-  function getHeroEvolution(hero, level) {
-    if (level >= 6) return { stage: 'Monarch Mode', img: hero.stages.monarch, glow: 'monarch-glow' };
-    if (level >= 3) return { stage: 'Awakened State', img: hero.stages.awakened, glow: 'awakened-glow' };
-    return { stage: 'Base State', img: hero.stages.base, glow: 'base-glow' };
+  function prevQuestion() {
+    if (qIndex > 0) setQIndex(qIndex - 1);
+    else setView('landing');
   }
 
   function toggleQuest(quest) {
@@ -150,9 +289,9 @@ export default function App() {
         ...prev,
         completedQuestIds: prev.completedQuestIds.filter((id) => id !== quest.id),
         xp: Math.max(0, prev.xp - quest.xp),
-        stats: {
-          ...prev.stats,
-          [quest.stat]: Math.max(10, (prev.stats[quest.stat] || 15) - 3)
+        ratings: {
+          ...prev.ratings,
+          [quest.stat]: Math.max(20, (prev.ratings[quest.stat] || 50) - 4)
         }
       }));
     } else {
@@ -164,9 +303,9 @@ export default function App() {
         completedQuestIds: [...prev.completedQuestIds, quest.id],
         xp: nextXP,
         level: nextLevel,
-        stats: {
-          ...prev.stats,
-          [quest.stat]: (prev.stats[quest.stat] || 15) + 3
+        ratings: {
+          ...prev.ratings,
+          [quest.stat]: (prev.ratings[quest.stat] || 50) + 4
         }
       }));
 
@@ -176,314 +315,302 @@ export default function App() {
   }
 
   function resetGame() {
-    if (window.confirm('Reset all progress and create a new contract?')) {
+    if (window.confirm('Reset this arc and choose a new character?')) {
       localStorage.removeItem(STORAGE_KEY);
       setGameState(null);
-      setStep('landing');
+      setView('landing');
+      setQIndex(0);
     }
   }
 
-  // --- SCREEN 1: LANDING ---
-  if (!gameState && step === 'landing') {
+  if (view === 'landing') {
     return (
-      <div className="phone-wrapper">
-        <div className="landing-content">
-          <span className="brand-tag">✦ LIFELORE RPG</span>
-          <h1>TURN YOUR LIFE INTO AN <em>ANIME ADVENTURE</em></h1>
-          <p>Answer questions about your routine, awaken your personalized hero, and sign a contract for real growth.</p>
-          <div className="landing-card-preview">
+      <div className="mobile-frame">
+        <div className="landing-layout">
+          <div className="landing-badge">✦ WINTER ARC RPG</div>
+          <h1 className="landing-title">START YOUR OWN<br /><span>WINTER ARC</span></h1>
+          <p className="landing-desc">Turn your goals into daily quests. Awaken an anime alter-ego that evolves as you level up.</p>
+          <div className="landing-hero-box">
             <img
               src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80"
-              alt="Character Preview"
-              className="preview-img"
+              alt="Winter Arc Character"
             />
           </div>
-          <button className="enter-btn full-btn" onClick={startOnboarding}>
-            BEGIN ONBOARDING →
+          <button className="primary-pill-btn" onClick={() => setView('wizard')}>
+            ENTER THE PROTOCOL →
           </button>
         </div>
       </div>
     );
   }
 
-  // --- SCREEN 2: ONBOARDING & OATH ---
-  if (!gameState && step === 'questions') {
-    const previewHero = determineCharacter(survey.goal);
+  if (view === 'wizard') {
+    const curQ = questions[qIndex];
+    const progress = ((qIndex + 1) / questions.length) * 100;
 
     return (
-      <div className="phone-wrapper">
-        <div className="onboarding-scroll">
-          <h2>CHARACTER AWAKENING</h2>
-          <p className="subtext">Configure your schedule and seal the pact.</p>
-
-          <label className="input-group">
-            <span>What is your name?</span>
-            <input
-              type="text"
-              placeholder="e.g. Jin, Ethan, Jordan"
-              value={survey.name}
-              onChange={(e) => setSurvey({ ...survey, name: e.target.value })}
-            />
-          </label>
-
-          <label className="input-group">
-            <span>What is your top priority right now?</span>
-            <select
-              value={survey.goal}
-              onChange={(e) => setSurvey({ ...survey, goal: e.target.value })}
-            >
-              <option value="discipline">Unstoppable Discipline (Shadow Monarch)</option>
-              <option value="fitness">Physical Strength & Combat (Tanjiro Kamado)</option>
-              <option value="studies">Deep Focus & Strategy (Loid Forger)</option>
-              <option value="habits">Vitality & Consistency (Naruto Uzumaki)</option>
-            </select>
-          </label>
-
-          <div className="assigned-preview">
-            <span className="preview-label">ASSIGNED COMPANION</span>
-            <div className="mini-hero-row">
-              <img src={previewHero.stages.base} alt={previewHero.name} />
-              <div>
-                <strong>{previewHero.name}</strong>
-                <small>{previewHero.anime} • {previewHero.title}</small>
-              </div>
-            </div>
-          </div>
-
-          <label className="input-group">
-            <span>A hobby you want to protect:</span>
-            <input
-              type="text"
-              placeholder="e.g. Guitar, Digital Art, Gaming"
-              value={survey.hobby}
-              onChange={(e) => setSurvey({ ...survey, hobby: e.target.value })}
-            />
-          </label>
-
-          <label className="input-group">
-            <span>Duration of this Chapter:</span>
-            <div className="duration-selector">
-              {[7, 14, 21, 30].map((days) => (
-                <button
-                  type="button"
-                  key={days}
-                  className={`duration-chip ${survey.duration === days ? 'active' : ''}`}
-                  onClick={() => setSurvey({ ...survey, duration: days })}
-                >
-                  {days} DAYS
-                </button>
-              ))}
-            </div>
-          </label>
-
-          <div className="contract-box">
-            <h3>THE LIVING OATH</h3>
-            <p>
-              I, <strong>{survey.name || 'Wanderer'}</strong>, bind myself to this <strong>{survey.duration}-Day Arc</strong>. 
-              I will complete my daily trials, level up my attributes, and push past comfort.
-            </p>
-
-            <SignaturePad onChange={(dataUrl) => setSurvey({ ...survey, signature: dataUrl })} />
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={survey.agreed}
-                onChange={(e) => setSurvey({ ...survey, agreed: e.target.checked })}
-              />
-              <span>I accept the pact and bind my progress to this device.</span>
-            </label>
-          </div>
-
-          <button className="enter-btn full-btn" onClick={handleSurveyComplete}>
-            SEAL OATH & AWAKEN →
-          </button>
+      <div className="mobile-frame">
+        <div className="wizard-header">
+          <button className="back-link" onClick={prevQuestion}>‹ Back</button>
+          <span>STEP {qIndex + 1} OF {questions.length}</span>
         </div>
+
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${progress}%` }} />
+        </div>
+
+        <div className="wizard-body">
+          <span className="phase-tag">INITIALIZING ARC</span>
+          <h2 className="q-title">{curQ.title}</h2>
+          <p className="q-desc">{curQ.subtitle}</p>
+
+          <div className="q-content">{curQ.render()}</div>
+        </div>
+
+        <button className="primary-pill-btn" onClick={nextQuestion}>
+          {qIndex === questions.length - 1 ? 'AWAKEN & BEGIN ARC →' : 'CONTINUE →'}
+        </button>
       </div>
     );
   }
 
-  // --- SCREEN 3: ACTIVE GAME DASHBOARD ---
-  const currentHero = Object.values(CHARACTERS).find((c) => c.id === gameState.heroKey) || CHARACTERS.discipline;
-  const evolution = getHeroEvolution(currentHero, gameState.level);
-  const activeQuests = generateDynamicQuests(gameState.level, gameState.goal, gameState.hobby);
+  const activeHero = Object.values(ARCHETYPES).find((h) => h.id === gameState.heroKey) || ARCHETYPES.discipline;
+  const quests = generateDynamicQuests(gameState.level, gameState.goal, gameState.hobby);
+  const todoQuests = quests.filter((q) => !gameState.completedQuestIds.includes(q.id));
+  const doneQuests = quests.filter((q) => gameState.completedQuestIds.includes(q.id));
 
-  const todoQuests = activeQuests.filter((q) => !gameState.completedQuestIds.includes(q.id));
-  const doneQuests = activeQuests.filter((q) => gameState.completedQuestIds.includes(q.id));
+  let heroImage = activeHero.stages.base;
+  let stageName = 'Base Level';
+  let auraGlow = 'glow-base';
+
+  if (gameState.level >= 6) {
+    heroImage = activeHero.stages.monarch;
+    stageName = 'Monarch Awakening';
+    auraGlow = 'glow-monarch';
+  } else if (gameState.level >= 3) {
+    heroImage = activeHero.stages.awakened;
+    stageName = 'Awakened State';
+    auraGlow = 'glow-awakened';
+  }
 
   const currentLevelXP = gameState.xp % XP_PER_LEVEL;
-  const xpNeeded = XP_PER_LEVEL;
 
   return (
-    <div className="phone-wrapper">
-      {/* Toast Notification */}
+    <div className="mobile-frame">
       {toast && (
-        <div className="xp-toast-overlay">
-          <div className="xp-toast">
-            <span className="toast-label">XP EARNED</span>
-            <div className="toast-main">
+        <div className="toast-float">
+          <div className="toast-card">
+            <span className="toast-tag">XP EARNED</span>
+            <div className="toast-row">
               <span className="toast-arrow">▲</span>
               <strong>+{toast.xp}</strong>
             </div>
             <div className="toast-sub">
-              <span>ATTRIBUTE BOOST</span>
-              <strong>{toast.stat} +3</strong>
+              <span>{toast.stat}</span>
+              <strong>+4 pts</strong>
             </div>
           </div>
         </div>
       )}
 
-      {/* Top Status Bar */}
-      <div className="app-status-bar">
-        <div className="pill-group">
-          <span className="pill orange-pill">🔥 {gameState.streak}</span>
-          <span className="pill green-pill">🏆 {gameState.trophies}</span>
-          <span className="pill amber-pill">✦ {gameState.xp}</span>
-        </div>
-        <button className="icon-btn" onClick={resetGame} title="Reset Arc">
-          ↻
+      <div className="top-tab-switcher">
+        <button
+          className={`switch-btn ${dashboardTab === 'quests' ? 'active' : ''}`}
+          onClick={() => setDashboardTab('quests')}
+        >
+          DAILY QUESTS
+        </button>
+        <button
+          className={`switch-btn ${dashboardTab === 'progress' ? 'active' : ''}`}
+          onClick={() => setDashboardTab('progress')}
+        >
+          PROGRESS
         </button>
       </div>
 
-      {/* Day Title Row */}
-      <div className="day-title-row">
-        <h1>
-          DAY {gameState.day} <span>/{gameState.totalDays}</span>
-        </h1>
-        <div className="day-arrows">
-          <button>‹</button>
-          <button>›</button>
-        </div>
-      </div>
-      <p className="day-subtitle">{evolution.stage} • {currentHero.title}</p>
-
-      {/* Hero Card */}
-      <div className="player-card">
-        <div className="card-left">
-          <h2 className="player-name">{gameState.player}</h2>
-          <div className="lvl-row">
-            <span className="lvl-prefix">LV</span>
-            <span className="lvl-number">{gameState.level}</span>
+      {dashboardTab === 'quests' ? (
+        <>
+          <div className="status-metrics">
+            <div className="pill-group">
+              <span className="metric-pill pill-orange">🔥 {gameState.streak}</span>
+              <span className="metric-pill pill-green">🏆 {gameState.trophies}</span>
+              <span className="metric-pill pill-amber">✦ {gameState.xp}</span>
+            </div>
+            <button className="reset-circle" onClick={resetGame} title="Reset">↻</button>
           </div>
 
-          <div className="segmented-bar">
-            {Array.from({ length: 18 }).map((_, i) => (
-              <span
-                key={i}
-                className={`bar-segment ${i < Math.round((currentLevelXP / xpNeeded) * 18) ? 'filled' : ''}`}
-              />
+          <div className="day-header-row">
+            <h1>DAY {gameState.day} <span>/{gameState.totalDays}</span></h1>
+            <div className="day-nav-btns">
+              <button>‹</button>
+              <button>›</button>
+            </div>
+          </div>
+
+          <div className="hero-card">
+            <div className="hero-card-left">
+              <h2 className="player-tag">{gameState.player}</h2>
+              <div className="lvl-badge-row">
+                <span className="lvl-tag">LV</span>
+                <span className="lvl-num">{gameState.level}</span>
+              </div>
+
+              <div className="segmented-gauge">
+                {Array.from({ length: 16 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`gauge-notch ${i < Math.round((currentLevelXP / XP_PER_LEVEL) * 16) ? 'filled' : ''}`}
+                  />
+                ))}
+              </div>
+              <div className="gauge-label">{XP_PER_LEVEL - currentLevelXP} XP to Level {gameState.level + 1}</div>
+
+              <div className="mini-stats-grid">
+                <div><span>CON</span><b>{gameState.ratings.DISCIPLINE}</b></div>
+                <div><span>FOC</span><b>{gameState.ratings.FOCUS}</b></div>
+                <div><span>STR</span><b>{gameState.ratings.STRENGTH}</b></div>
+                <div><span>WIS</span><b>{gameState.ratings.WISDOM}</b></div>
+              </div>
+            </div>
+
+            <div className="hero-card-right">
+              <div className={`avatar-aura ${auraGlow}`} style={{ '--aura': activeHero.auraColor }}>
+                <img src={heroImage} alt={activeHero.name} className="hero-photo" />
+              </div>
+              <span className="tier-tag">BRONZE V</span>
+            </div>
+          </div>
+
+          <div className="subtabs-bar">
+            <button
+              className={`subtab-btn ${questSubTab === 'todos' ? 'active' : ''}`}
+              onClick={() => setQuestSubTab('todos')}
+            >
+              To-dos <span>{todoQuests.length}</span>
+            </button>
+            <button
+              className={`subtab-btn ${questSubTab === 'done' ? 'active' : ''}`}
+              onClick={() => setQuestSubTab('done')}
+            >
+              Done <span>{doneQuests.length}</span>
+            </button>
+            <button className="subtab-btn disabled">
+              Skipped <span>0</span>
+            </button>
+          </div>
+
+          <div className="quests-scroll-area">
+            {questSubTab === 'todos' &&
+              todoQuests.map((q) => (
+                <div
+                  key={q.id}
+                  className="quest-card-item"
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.25) 0%, rgba(10,10,14,0.92) 80%), url(${q.bg})` }}
+                >
+                  <div className="quest-details">
+                    <h3>{q.title}</h3>
+                    <div className="quest-meta-chips">
+                      <span>🔁 {q.type}</span>
+                      <span>📊 {q.difficulty}</span>
+                      <span>⏱ {q.duration}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="quest-checkbox"
+                    onClick={() => toggleQuest(q)}
+                    aria-label="Mark done"
+                  />
+                </div>
+              ))}
+
+            {questSubTab === 'done' &&
+              doneQuests.map((q) => (
+                <div
+                  key={q.id}
+                  className="quest-card-item completed-card"
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,18,0.5) 0%, rgba(10,10,14,0.95) 80%), url(${q.bg})` }}
+                >
+                  <div className="quest-details">
+                    <h3 className="strikethrough">{q.title}</h3>
+                    <div className="quest-meta-chips">
+                      <span>COMPLETED</span>
+                      <span>+{q.xp} XP AWARDED</span>
+                    </div>
+                  </div>
+                  <button
+                    className="quest-checkbox checked"
+                    onClick={() => toggleQuest(q)}
+                    aria-label="Undo"
+                  >
+                    ✓
+                  </button>
+                </div>
+              ))}
+
+            {questSubTab === 'todos' && todoQuests.length === 0 && (
+              <div className="peak-reached-box">
+                <span className="peak-label">— PEAK REACHED —</span>
+                <p>Nothing left on the list today.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mobile-footer-nav">
+            <span className="day-badge">DAY {gameState.day}</span>
+            <span>{doneQuests.length} of {quests.length} trials cleared</span>
+            <button
+              className="enter-pill"
+              onClick={() => {
+                setGameState((prev) => ({
+                  ...prev,
+                  day: Math.min(prev.totalDays, prev.day + 1),
+                  streak: prev.streak + 1,
+                  completedQuestIds: []
+                }));
+              }}
+            >
+              ENTER →
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="progress-screen">
+          <h2 className="rating-main-title">Your Rating</h2>
+
+          <div className="rating-summary-card">
+            <div className="rating-box">
+              <span className="rating-lvl-tag">LEVEL</span>
+              <strong className="rating-lvl-num">{gameState.level}</strong>
+            </div>
+            <div className="rating-xp-box">
+              <strong>{gameState.xp.toLocaleString()}</strong>
+              <span>XP earned</span>
+            </div>
+          </div>
+
+          <div className="rating-stats-list">
+            {Object.entries(gameState.ratings).map(([statName, val]) => (
+              <div className="rating-row" key={statName}>
+                <div className="stat-title-left">
+                  <span className="stat-glyph">
+                    {statName === 'FOCUS' ? '◎' : statName === 'DISCIPLINE' ? '🔒' : statName === 'STRENGTH' ? '🏋' : statName === 'CONFIDENCE' ? '🏃' : '🔮'}
+                  </span>
+                  <span>{statName}</span>
+                </div>
+                <div className="stat-val-right">
+                  <span className="arrow-up">▲</span>
+                  <strong>{val}</strong>
+                </div>
+              </div>
             ))}
           </div>
-          <div className="xp-remain-text">{xpNeeded - currentLevelXP} XP to Level {gameState.level + 1}</div>
 
-          <div className="stats-row">
-            <div className="stat-pill"><span className="stat-name">CON</span> <strong>{gameState.stats.CON}</strong></div>
-            <div className="stat-pill"><span className="stat-name">FOC</span> <strong>{gameState.stats.FOC}</strong></div>
-            <div className="stat-pill"><span className="stat-name">DIS</span> <strong>{gameState.stats.DIS}</strong></div>
-            <div className="stat-pill"><span className="stat-name">STR</span> <strong>{gameState.stats.STR}</strong></div>
-            <div className="stat-pill"><span className="stat-name">WIS</span> <strong>{gameState.stats.WIS}</strong></div>
+          <div className="quote-banner">
+            <p>"{activeHero.line}"</p>
+            <small>— {activeHero.name} ({stageName})</small>
           </div>
         </div>
-
-        <div className="card-right">
-          <div className={`avatar-aura ${evolution.glow}`} style={{ '--aura': currentHero.auraColor }}>
-            <img src={evolution.img} alt={currentHero.name} className="hero-img" />
-          </div>
-          <div className="rank-badge">{evolution.stage.toUpperCase()}</div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="tabs-bar">
-        <button
-          className={`tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('todos')}
-        >
-          To-dos <span>{todoQuests.length}</span>
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'done' ? 'active' : ''}`}
-          onClick={() => setActiveTab('done')}
-        >
-          Done <span>{doneQuests.length}</span>
-        </button>
-      </div>
-
-      {/* Quest Cards */}
-      <div className="quest-scroll-list">
-        {activeTab === 'todos' &&
-          todoQuests.map((quest) => (
-            <div
-              key={quest.id}
-              className="cinematic-card"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,16,0.3) 0%, rgba(10,10,12,0.92) 80%), url(${quest.bg})` }}
-            >
-              <div className="quest-info">
-                <h3>{quest.title}</h3>
-                <div className="quest-meta">
-                  <span>🔁 {quest.type}</span>
-                  <span>📊 {quest.difficulty}</span>
-                  <span>⏱ {quest.duration}</span>
-                  <span className="quest-xp-badge">+{quest.xp} XP</span>
-                </div>
-              </div>
-              <button
-                className="quest-check-btn"
-                onClick={() => toggleQuest(quest)}
-                aria-label="Complete Quest"
-              />
-            </div>
-          ))}
-
-        {activeTab === 'done' &&
-          doneQuests.map((quest) => (
-            <div
-              key={quest.id}
-              className="cinematic-card completed"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(14,14,16,0.5) 0%, rgba(10,10,12,0.96) 80%), url(${quest.bg})` }}
-            >
-              <div className="quest-info">
-                <h3 className="line-through">{quest.title}</h3>
-                <div className="quest-meta">
-                  <span>COMPLETED</span>
-                  <span>+{quest.xp} XP AWARDED</span>
-                </div>
-              </div>
-              <button
-                className="quest-check-btn checked"
-                onClick={() => toggleQuest(quest)}
-                aria-label="Undo Quest"
-              >
-                ✓
-              </button>
-            </div>
-          ))}
-
-        {activeTab === 'todos' && todoQuests.length === 0 && (
-          <div className="empty-state">
-            <span className="empty-title">— DAY {gameState.day} CLEARED —</span>
-            <p>All trials overcome. Your aura grows stronger.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="bottom-bar">
-        <div className="bottom-pill">DAY {gameState.day}</div>
-        <span>{doneQuests.length} of {activeQuests.length} completed</span>
-        <button
-          className="enter-btn"
-          onClick={() => {
-            setGameState((prev) => ({
-              ...prev,
-              day: Math.min(prev.totalDays, prev.day + 1),
-              completedQuestIds: []
-            }));
-          }}
-        >
-          NEXT DAY →
-        </button>
-      </div>
+      )}
     </div>
   );
 }
