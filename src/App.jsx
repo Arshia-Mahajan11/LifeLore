@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { HEROES, buildQuests, XP_PER_LEVEL } from './data/lore.js';
+import { HEROES, LIFE_PATHS, buildDynamicQuests, XP_PER_LEVEL } from './data/lore.js';
 import '../styles/styles.css';
 
-const STORAGE_KEY = 'lifelore_v4_save';
+const STORAGE_KEY = 'lifelore_v5_save';
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -19,11 +19,16 @@ export default function App() {
   const [subTab, setSubTab] = useState('todos');
   const [toast, setToast] = useState(null);
 
+  // Deep Diagnostic State
   const [survey, setSurvey] = useState({
     name: '',
-    heroKey: 'jinwoo',
-    studyHours: 4,
+    path: 'builder',
+    focusHours: 4,
+    workoutType: 'gym',
+    glowGoal: 'Double Cleanse + Ice Therapy',
+    weakness: 'screens',
     hobby: '',
+    heroKey: 'jinwoo',
     duration: 66,
     signMethod: 'thumb',
     signature: '',
@@ -42,13 +47,13 @@ export default function App() {
   const questions = [
     {
       id: 'name',
-      title: 'ENTER YOUR HUNTER IDENTITY',
-      subtitle: 'The registry requires your designated combat moniker.',
+      title: 'WHAT IS YOUR HUNTER CODENAME?',
+      subtitle: 'The registry requires your alias for the Winter Arc rankings.',
       render: () => (
         <input
           type="text"
-          className="q-input-bold"
-          placeholder="e.g. Ethan, Jin, Jordan"
+          className="q-input-massive"
+          placeholder="e.g. Jin, Jordan, Ethan, Ronin"
           value={survey.name}
           onChange={(e) => setSurvey({ ...survey, name: e.target.value })}
           autoFocus
@@ -56,9 +61,115 @@ export default function App() {
       )
     },
     {
-      id: 'character',
-      title: 'SELECT YOUR ANIME ARCHETYPE',
-      subtitle: 'Choose the aesthetic and combat spirit for your Winter Arc.',
+      id: 'path',
+      title: 'SELECT YOUR DOMINANT LIFE PATH',
+      subtitle: 'Your quest generation automatically tunes itself to what you do every day.',
+      render: () => (
+        <div className="path-grid">
+          {LIFE_PATHS.map((p) => (
+            <div
+              key={p.id}
+              className={`path-card ${survey.path === p.id ? 'active' : ''}`}
+              onClick={() => setSurvey({ ...survey, path: p.id })}
+            >
+              <span className="path-icon">{p.icon}</span>
+              <div className="path-info">
+                <strong>{p.title}</strong>
+                <small>{p.subtitle}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: 'focusHours',
+      title: 'DAILY DEEP FOCUS INTENSITY',
+      subtitle: 'How many daily hours of uninterrupted work/study will you enforce?',
+      render: () => (
+        <div className="intensity-grid">
+          {[2, 4, 6, 8].map((h) => (
+            <button
+              type="button"
+              key={h}
+              className={`intensity-chip ${survey.focusHours === h ? 'active' : ''}`}
+              onClick={() => setSurvey({ ...survey, focusHours: h })}
+            >
+              <span className="hrs-huge">{h}h</span>
+              <span className="hrs-tier">{h >= 8 ? 'MONK MODE' : h >= 6 ? 'HARDCORE' : h >= 4 ? 'STANDARD' : 'LIGHT'}</span>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: 'glow',
+      title: 'GLOW-UP & AESTHETIC PROTOCOL',
+      subtitle: 'What skincare or physical glow habit needs locking in?',
+      render: () => (
+        <div className="selection-stack">
+          {[
+            'Ice Face + Double Cleanser + SPF',
+            'Cold Showers + 3.5L Pure Water Hydration',
+            'Derma-Roll / Retinol + Night Barrier Repair',
+            'Posture Correction & Jawline Training'
+          ].map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`choice-bar ${survey.glowGoal === item ? 'active' : ''}`}
+              onClick={() => setSurvey({ ...survey, glowGoal: item })}
+            >
+              <span>✨</span>
+              <strong>{item}</strong>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: 'weakness',
+      title: 'WHAT THREAT BREAKS YOUR MOMENTUM?',
+      subtitle: 'We configure counter-rituals against your biggest bottleneck.',
+      render: () => (
+        <div className="selection-stack">
+          {[
+            { key: 'screens', label: 'Late Night Screen & Short-Form Dopamine', icon: '📱' },
+            { key: 'procrastination', label: 'Hesitating on Starting Hard Deep Work', icon: '⏳' },
+            { key: 'energy', label: 'Mid-Day Crashes & Sleep Deprivation', icon: '💤' },
+            { key: 'consistency', label: 'Starting Hot Then Quitting After 4 Days', icon: '📉' }
+          ].map((w) => (
+            <button
+              key={w.key}
+              type="button"
+              className={`choice-bar ${survey.weakness === w.key ? 'active' : ''}`}
+              onClick={() => setSurvey({ ...survey, weakness: w.key })}
+            >
+              <span>{w.icon}</span>
+              <strong>{w.label}</strong>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: 'hobby',
+      title: 'NAME YOUR PROTECTED CRAFT',
+      subtitle: 'A high-tier skill or hobby keeps your humanity intact.',
+      render: () => (
+        <input
+          type="text"
+          className="q-input-massive"
+          placeholder="e.g. Chess, Guitar, Pixel Art, Boxing"
+          value={survey.hobby}
+          onChange={(e) => setSurvey({ ...survey, hobby: e.target.value })}
+        />
+      )
+    },
+    {
+      id: 'hero',
+      title: 'AWAKEN YOUR COMPANION',
+      subtitle: 'Choose your visual spirit for this transformation.',
       render: () => (
         <div className="char-selection-grid">
           {Object.values(HEROES).map((h) => (
@@ -79,54 +190,31 @@ export default function App() {
       )
     },
     {
-      id: 'study',
-      title: 'STUDY & DEEP WORK INTENSITY',
-      subtitle: 'How many daily hours of pure, undistracted focus will you conquer?',
-      render: () => (
-        <div className="study-chips-grid">
-          {[2, 4, 6, 8].map((hrs) => (
-            <button
-              type="button"
-              key={hrs}
-              className={`study-chip ${survey.studyHours === hrs ? 'active' : ''}`}
-              onClick={() => setSurvey({ ...survey, studyHours: hrs })}
-            >
-              <span className="study-num">{hrs}h</span>
-              <span className="study-label">
-                {hrs >= 8 ? 'MONK MODE' : hrs >= 6 ? 'HARDCORE' : hrs >= 4 ? 'BALANCED' : 'LIGHT'}
-              </span>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      id: 'hobby',
-      title: 'PROTECTED HOBBY & GLOW-UP',
-      subtitle: 'Identify a craft or skill you will polish alongside your skin care.',
-      render: () => (
-        <input
-          type="text"
-          className="q-input-bold"
-          placeholder="e.g. Guitar, Digital Art, Reading"
-          value={survey.hobby}
-          onChange={(e) => setSurvey({ ...survey, hobby: e.target.value })}
-        />
-      )
-    },
-    {
       id: 'contract',
-      title: 'SEAL THE ANCIENT LIVING PACT',
-      subtitle: 'Sign in ink or stamp your biometric thumbprint upon the parchment.',
+      title: 'SEAL THE LIVING PACT',
+      subtitle: 'Choose your arc duration and sign the codex.',
       render: () => (
         <div className="parchment-scroll">
           <div className="parchment-wax-seal">✦</div>
           <h3 className="parchment-title">SACRED OATH OF ELEVATION</h3>
           <p className="parchment-body">
-            Be it known across all realms: <strong>{survey.name || 'The Wanderer'}</strong> has chosen the path of{' '}
-            <strong>{survey.duration} Days</strong>. I shall train my body, study <strong>{survey.studyHours} hours daily</strong>,
-            nurture radiance in skin and mind, and push past weakness.
+            Be it recorded across the archives: <strong>{survey.name || 'Hunter'}</strong> has taken the oath of the{' '}
+            <strong>{survey.duration}-Day Winter Arc</strong>. I shall conquer <strong>{survey.focusHours} hours of focus</strong> daily,
+            honor my glow-up, forge my physical armor, and conquer the demon of {survey.weakness}.
           </p>
+
+          <div className="duration-row">
+            {[14, 21, 66].map((days) => (
+              <button
+                type="button"
+                key={days}
+                className={`parchment-chip ${survey.duration === days ? 'active' : ''}`}
+                onClick={() => setSurvey({ ...survey, duration: days })}
+              >
+                {days} DAYS
+              </button>
+            ))}
+          </div>
 
           <div className="sign-method-toggle">
             <button
@@ -154,14 +242,14 @@ export default function App() {
                   setTimeout(() => {
                     setSurvey((s) => ({ ...s, thumbStamped: true }));
                     setIsPressingThumb(false);
-                  }, 800);
+                  }, 700);
                 }}
                 onTouchStart={() => {
                   setIsPressingThumb(true);
                   setTimeout(() => {
                     setSurvey((s) => ({ ...s, thumbStamped: true }));
                     setIsPressingThumb(false);
-                  }, 800);
+                  }, 700);
                 }}
               >
                 <span className="fingerprint-icon">🩸</span>
@@ -188,7 +276,7 @@ export default function App() {
               checked={survey.agreed}
               onChange={(e) => setSurvey({ ...survey, agreed: e.target.checked })}
             />
-            <span>I bind my name to this living codex forever.</span>
+            <span>I accept this covenant and bind my progress.</span>
           </label>
         </div>
       )
@@ -215,6 +303,11 @@ export default function App() {
 
       setData({
         name: survey.name.trim(),
+        path: survey.path,
+        focusHours: survey.focusHours,
+        glowGoal: survey.glowGoal,
+        weakness: survey.weakness,
+        hobby: survey.hobby,
         heroKey: survey.heroKey,
         day: 1,
         totalDays: survey.duration,
@@ -222,17 +315,15 @@ export default function App() {
         trophies: 25,
         xp: 120,
         level: 1,
-        studyHours: survey.studyHours,
-        hobby: survey.hobby,
-        glowLevel: 10,
+        glowLevel: 14,
         completedQuestIds: [],
         stats: {
           CON: 25,
-          FOC: 18,
-          DIS: 17,
-          STR: 22,
-          WIS: 13,
-          GLOW: 30
+          FOC: 22,
+          DIS: 20,
+          STR: 24,
+          WIS: 18,
+          GLOW: 40
         }
       });
       setScreen('dashboard');
@@ -284,7 +375,7 @@ export default function App() {
     }
   }
 
-  // --- 1. COVER POSTER SCREEN ---
+  // --- 1. COVER / POSTER ---
   if (screen === 'landing') {
     return (
       <div className="app-viewport">
@@ -337,7 +428,7 @@ export default function App() {
     );
   }
 
-  // --- 2. 1-QUESTION-AT-A-TIME WIZARD ---
+  // --- 2. WIZARD (1 QUESTION AT A TIME, NO GAPS) ---
   if (screen === 'wizard') {
     const curQ = questions[qIndex];
     const progress = ((qIndex + 1) / questions.length) * 100;
@@ -371,7 +462,7 @@ export default function App() {
 
   // --- 3. DASHBOARD ---
   const activeHero = HEROES[data.heroKey] || HEROES.jinwoo;
-  const currentQuests = buildQuests(data.studyHours, '1h', data.level, data.hobby);
+  const currentQuests = buildDynamicQuests(data, data.level);
   const todoQuests = currentQuests.filter((q) => !data.completedQuestIds.includes(q.id));
   const doneQuests = currentQuests.filter((q) => data.completedQuestIds.includes(q.id));
   const xpNeeded = XP_PER_LEVEL;
