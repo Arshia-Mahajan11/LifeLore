@@ -61,39 +61,45 @@ export const ARCHETYPES = {
 
 export function matchArchetype(goal) {
   if (goal === 'strength') return ARCHETYPES.strength;
-  if (goal === 'focus') return ARCHETYPES.focus;
+  if (goal === 'focus' || goal === 'hardcore_study') return ARCHETYPES.focus;
   if (goal === 'mindset') return ARCHETYPES.mindset;
   return ARCHETYPES.discipline;
 }
 
-export function generateDynamicQuests(level = 1, goal = 'discipline', hobby = '') {
+export function generateDynamicQuests(level = 1, studyHours = '6', hobby = '') {
   const isHighLevel = level >= 5;
   const isMidLevel = level >= 3;
 
+  // Custom Study Hours based on their chosen 5h, 6h, or 8h+ answer
+  const studyHoursNum = parseInt(studyHours, 10) || 6;
+  const studyTitle = `${studyHoursNum}h Hardcore Study Arc`;
+  const studyDuration = `0 / ${studyHoursNum} hrs`;
+
   return [
     {
-      id: 'q-deepwork',
-      title: isHighLevel ? '4 Hour Deep Work' : isMidLevel ? '2 Hour Focused Study' : '1 Hour Deep Work',
+      id: 'q-study',
+      title: studyTitle,
       type: 'Daily',
-      difficulty: isHighLevel ? 'Hard' : isMidLevel ? 'Medium' : 'Easy',
-      duration: isHighLevel ? '0 / 240 mins' : '0 / 60 mins',
+      difficulty: studyHoursNum >= 6 ? 'Extreme' : 'Hard',
+      duration: studyDuration,
       stat: 'FOCUS',
-      xp: isHighLevel ? 80 : 50,
+      xp: studyHoursNum * 15,
       bg: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800&auto=format&fit=crop&q=80'
     },
     {
-      id: 'q-screentime',
-      title: isHighLevel ? 'Screentime < 2hr' : 'Screentime < 4hr',
-      type: 'Daily',
+      id: 'q-skincare',
+      title: 'Skin Care & Looksmaxing Glow',
+      type: 'Daily Glow',
       difficulty: 'Easy',
-      duration: 'Daily tracker',
-      stat: 'DISCIPLINE',
+      duration: 'Morning & Night Cleanser + Moisturizer',
+      stat: 'WISDOM',
       xp: 40,
-      bg: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80'
+      glowUp: true,
+      bg: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&auto=format&fit=crop&q=80'
     },
     {
       id: 'q-workout',
-      title: isHighLevel ? 'Heavy Gym Training 1.5h' : 'Workout 1h (Strength)',
+      title: isHighLevel ? 'Intense Gym Training 1.5h' : 'Workout 1h (Strength)',
       type: 'Daily',
       difficulty: isHighLevel ? 'Extreme' : 'Hard',
       duration: '0 / 1 hr',
@@ -102,12 +108,22 @@ export function generateDynamicQuests(level = 1, goal = 'discipline', hobby = ''
       bg: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80'
     },
     {
+      id: 'q-screentime',
+      title: isHighLevel ? 'Screentime < 2hr' : 'Screentime < 4hr',
+      type: 'Daily',
+      difficulty: 'Medium',
+      duration: 'Daily tracker',
+      stat: 'DISCIPLINE',
+      xp: 45,
+      bg: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80'
+    },
+    {
       id: 'q-hobby',
-      title: hobby && hobby.trim() ? `Arc Practice: ${hobby}` : 'Night Wind-Down Routine',
+      title: hobby && hobby.trim() ? `Arc Mastery: ${hobby}` : 'Night Meditation & Rest',
       type: 'Side Quest',
       difficulty: 'Easy',
       duration: '30 mins',
-      stat: 'WISDOM',
+      stat: 'CONFIDENCE',
       xp: 35,
       bg: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&auto=format&fit=crop&q=80'
     }
